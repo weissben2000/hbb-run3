@@ -213,7 +213,7 @@ class categorizer(SkimmerABC):
         selection.add("2FJ", ak.num(goodfatjets, axis=1) == 2)
         selection.add("not2FJ", ak.num(goodfatjets, axis=1) != 2)
 
-        xbbfatjets = goodfatjets[ak.argmax(goodfatjets.particleNet_XbbVsQCD, axis=1, keepdims=True)]
+        xbbfatjets = goodfatjets[ak.argsort(goodfatjets.particleNet_XbbVsQCD, axis=1, ascending=False)]
 
         candidatejet = ak.firsts(xbbfatjets[:, 0:1])
         subleadingjet = ak.firsts(xbbfatjets[:, 1:2])
@@ -403,6 +403,8 @@ class categorizer(SkimmerABC):
             output_array = {
                 "GenBoson_pt": genBosonPt,
                 "GenFlavor": genflavor,
+                "nFatJet": ak.num(goodfatjets, axis=1),
+                "nJet": ak.num(goodjets, axis=1),
                 "FatJet0_pt": candidatejet.pt,
                 "FatJet0_phi": candidatejet.phi,
                 "FatJet0_eta": candidatejet.eta,
