@@ -133,5 +133,5 @@ def get_jetveto_event(jets: JetArray, year: str):
 
     jet_veto = get_veto(j, nj, corr_str) > 0
 
-    event_sel = ~(ak.any((jets.pt > 15) & jet_veto, axis=1))
+    event_sel = ~(ak.any((jets.pt > 15) & (jets.jetidtightlepveto) & jet_veto, axis=1))
     return event_sel

@@ -109,8 +109,10 @@ def run(year: str, fileset: dict, args: argparse.Namespace):
         pickle.dump(output, f)
     print("Saved output to ", f"{local_dir}/{args.starti}-{args.endi}.pkl")
 
-    # need to combine all the files from these processor
+    # COMBINE FILES
     # otherwise it will complain about too many small files
+    # This is the CORRECTED version of the file-combining block for run.py
+
     if args.save_skim:
         import pandas as pd
         import pyarrow as pa
@@ -120,17 +122,16 @@ def run(year: str, fileset: dict, args: argparse.Namespace):
         parquet_folders = set()
         for parquet_file in local_parquet_dir.rglob("*.parquet"):
             parquet_folders.add(str(parquet_file.parent.resolve()))
-        # print("Subfolders: ", parquet_folders)
 
         for folder in parquet_folders:
             full_path = Path(folder)
+            # This is the simpler, correct way to get the region name
             region_name = full_path.name
             pddf = pd.read_parquet(folder)
 
-            # need to write with pyarrow as pd.to_parquet doesn't support different types in
-            # multi-index column names
             table = pa.Table.from_pandas(pddf)
-            output_file = f"{local_dir}/{region_name}_{args.starti}-{args.endi}.parquet"
+            # This saves the combined file as {region_name}.parquet locally
+            output_file = f"{local_dir}/{region_name}.parquet"
             pq.write_table(table, output_file)
             print("Saved parquet file to ", output_file)
 

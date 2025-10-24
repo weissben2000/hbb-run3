@@ -161,6 +161,6 @@ def parse_args(parser):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parse_args(parser)
-    args = parser.parse_args()
     run_utils.parse_common_args(parser)
+    args = parser.parse_args()
     main(args)

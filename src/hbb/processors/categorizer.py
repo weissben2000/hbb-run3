@@ -6,7 +6,6 @@ import time
 from pathlib import Path
 
 import awkward as ak
-import dask
 import dask_awkward as dak
 import numpy as np
 from coffea.analysis_tools import PackedSelection, Weights
@@ -95,21 +94,9 @@ class categorizer(SkimmerABC):
             "cutflow": Hist.new.StrCat([], growth=True, name="region", label="Region")
             .StrCat([], growth=True, name="dataset", label="Dataset")
             .Reg(15, 0, 15, name="cut", label="Cut index")
-            .Variable([0, 1, 2, 3, 4], name="genflavor", label="Gen. jet flavor"),
-            "btagWeight": Hist.new.Reg(50, 0, 3, name="val", label="BTag correction").Weight(),
-            "templates": Hist.new.StrCat([], growth=True, name="dataset", label="Dataset")
-            .StrCat([], growth=True, name="region", label="Region")
-            .StrCat([], growth=True, name="systematic", label="Systematic")
-            .Variable([0, 1, 3, 4], name="genflavor", label="Gen. jet flavor")
-            .Variable(
-                [280, 400, 450, 500, 550, 600, 675, 800, 1200],
-                name="pt1",
-                label="Jet $p_{T}$ [GeV]",
-            )
-            .Reg(23, 40, 201, name="msd1", label="Jet $m_{sd}$")
-            .Variable([0, 0.4, 0.5, 0.64, 1], name="pnet1", label="Jet ParticleNet TXbb score")
-            .Variable([-1, 0, 1000, 2000, 13000], name="mjj", label="$m_{jj}$ [GeV]")
+            .Variable([0, 1, 2, 3, 4], name="genflavor", label="Gen. jet flavor")
             .Weight(),
+            "btagWeight": Hist.new.Reg(50, 0, 3, name="val", label="BTag correction").Weight(),
             "skim": {},
         }
 
@@ -199,21 +186,24 @@ class categorizer(SkimmerABC):
         metfilter = ak.values_astype(ak.ones_like(events.run), bool)
         for flag in self._met_filters[self._year]["data" if isRealData else "mc"]:
             if flag in events.Flag.fields:
-                metfilter = dask.array.bitwise_and(metfilter, events.Flag[flag])
+                metfilter = metfilter & events.Flag[flag]
         selection.add("metfilter", metfilter)
         del metfilter
 
         fatjets = set_ak8jets(events.FatJet)
         goodfatjets = good_ak8jets(fatjets)
-        goodjets = good_ak4jets(set_ak4jets(events.Jet))
+        jets = set_ak4jets(events.Jet)
+        goodjets = good_ak4jets(jets)
 
-        cut_jetveto = get_jetveto_event(goodjets, self._year)
+        cut_jetveto = get_jetveto_event(jets, self._year)
         selection.add("ak4jetveto", cut_jetveto)
 
         selection.add("2FJ", ak.num(goodfatjets, axis=1) == 2)
         selection.add("not2FJ", ak.num(goodfatjets, axis=1) != 2)
 
-        xbbfatjets = goodfatjets[ak.argsort(goodfatjets.particleNet_XbbVsQCD, axis=1, ascending=False)]
+        xbbfatjets = goodfatjets[
+            ak.argsort(goodfatjets.pnetXbbXcc, axis=1, ascending=False)
+        ]
 
         candidatejet = ak.firsts(xbbfatjets[:, 0:1])
         subleadingjet = ak.firsts(xbbfatjets[:, 1:2])
@@ -223,6 +213,15 @@ class categorizer(SkimmerABC):
             (candidatejet.pt >= 300)
             & (candidatejet.pt < 1200)
             & (candidatejet.msd >= 40.0)
+            # & (candidatejet.msd < 201.0)
+            & (abs(candidatejet.eta) < 2.5),
+        )
+
+        selection.add(
+            "minjetkin_zgamma",
+            (candidatejet.pt >= 200)  # Loosened pt cut
+            & (candidatejet.pt < 1200)
+            & (candidatejet.msd >= 20.0)  # Loosened msd cut
             & (candidatejet.msd < 201.0)
             & (abs(candidatejet.eta) < 2.5),
         )
@@ -289,6 +288,7 @@ class categorizer(SkimmerABC):
         leadingphoton = ak.firsts(goodphotons)
 
         selection.add("onephoton", (nphotons == 1))
+        selection.add("atleastonephoton", (nphotons >= 1))
         selection.add("passphotonveto", (nphotons == 0))
 
         gen_variables = {}
@@ -308,8 +308,8 @@ class categorizer(SkimmerABC):
 
             bosons = getBosons(events.GenPart)
             matchedBoson = candidatejet.nearest(bosons, axis=None, threshold=0.8)
-            match_mask = ((candidatejet.pt - matchedBoson.pt) / matchedBoson.pt < 0.5) & (
-                (candidatejet.msd - matchedBoson.mass) / matchedBoson.mass < 0.3
+            match_mask = (abs(candidatejet.pt - matchedBoson.pt) / matchedBoson.pt < 0.5) & (
+                abs(candidatejet.msd - matchedBoson.mass) / matchedBoson.mass < 0.3
             )
             selmatchedBoson = ak.mask(matchedBoson, match_mask)
             genflavor = bosonFlavor(selmatchedBoson)
@@ -323,6 +323,7 @@ class categorizer(SkimmerABC):
                 "trigger",
                 "lumimask",
                 "metfilter",
+                "ak4jetveto",
                 "minjetkin",
                 "antiak4btagMediumOppHem",
                 "lowmet",
@@ -332,6 +333,7 @@ class categorizer(SkimmerABC):
                 "trigger",
                 "lumimask",
                 "metfilter",
+                "ak4jetveto",
                 "minjetkin",
                 "antiak4btagMediumOppHem",
                 "lowmet",
@@ -343,6 +345,7 @@ class categorizer(SkimmerABC):
                 "trigger",
                 "lumimask",
                 "metfilter",
+                "ak4jetveto",
                 "minjetkin",
                 "antiak4btagMediumOppHem",
                 "lowmet",
@@ -354,6 +357,7 @@ class categorizer(SkimmerABC):
                 "trigger",
                 "lumimask",
                 "metfilter",
+                "ak4jetveto",
                 "minjetkin",
                 "antiak4btagMediumOppHem",
                 "lowmet",
@@ -364,6 +368,7 @@ class categorizer(SkimmerABC):
                 "muontrigger",
                 "lumimask",
                 "metfilter",
+                "ak4jetveto",
                 "minjetkin",
                 "ak4btagMedium08",
                 "onemuon",
@@ -374,9 +379,9 @@ class categorizer(SkimmerABC):
                 "egammatrigger",
                 "lumimask",
                 "metfilter",
-                "minjetkin",
-                "ak4btagMedium08",
-                "onephoton",
+                "minjetkin_zgamma",
+                "atleastonephoton",
+                "antiak4btagMediumOppHem",
             ],
         }
 
@@ -395,7 +400,8 @@ class categorizer(SkimmerABC):
         else:
             systematics = [shift_name]
 
-        nominal_weight = ak.ones_like(candidatejet.pt) if isRealData else weights_dict["weight"]
+        nominal_weight = ak.ones_like(events.run) if isRealData else weights_dict["weight"]
+        gen_weight = ak.ones_like(events.run) if isRealData else events.genWeight
 
         output_array = None
         if self._save_skim:
@@ -409,11 +415,16 @@ class categorizer(SkimmerABC):
                 "FatJet0_phi": candidatejet.phi,
                 "FatJet0_eta": candidatejet.eta,
                 "FatJet0_msd": candidatejet.msd,
+                "FatJet0_msdmatched": msd_matched,
+                "FatJet0_n2b1": candidatejet.n2b1,
+                "FatJet0_n3b1": candidatejet.n3b1,
                 "FatJet0_pnetMass": candidatejet.pnetmass,
                 "FatJet0_pnetTXbb": candidatejet.particleNet_XbbVsQCD,
                 "FatJet0_pnetTXcc": candidatejet.particleNet_XccVsQCD,
                 "FatJet0_pnetTXqq": candidatejet.particleNet_XqqVsQCD,
                 "FatJet0_pnetTXgg": candidatejet.particleNet_XggVsQCD,
+                "FatJet0_pnetTQCD": candidatejet.particleNet_QCD,
+                "FatJet0_pnetXbbXcc": candidatejet.pnetXbbXcc,
                 "FatJet1_pt": subleadingjet.pt,
                 "FatJet1_phi": subleadingjet.phi,
                 "FatJet1_eta": subleadingjet.eta,
@@ -428,6 +439,7 @@ class categorizer(SkimmerABC):
                 "Photon0_pt": leadingphoton.pt,
                 "MET": met,
                 "weight": nominal_weight,
+                "genWeight": gen_weight,
                 **gen_variables,
             }
 
@@ -473,31 +485,6 @@ class categorizer(SkimmerABC):
                 "JetClosestFatJet0_mass": ak4_closest_ak8.mass,
             }
 
-        def fill(region, systematic, wmod=None):
-            selections = regions[region]
-            cut = selection.all(*selections)
-            sname = "nominal" if systematic is None else systematic
-
-            if wmod is None:
-                if systematic in weights.variations and not isRealData:
-                    weight = weights_dict[systematic][cut]
-                else:
-                    weight = nominal_weight[cut]
-            else:
-                weight = nominal_weight[cut] * wmod[cut]
-
-            output["templates"].fill(
-                dataset=dataset,
-                region=region,
-                systematic=sname,
-                genflavor=normalize(genflavor, cut),
-                pt1=normalize(candidatejet.pt, cut),
-                msd1=normalize(msd_matched, cut),
-                pnet1=normalize(candidatejet.particleNet_XbbVsQCD, cut),
-                mjj=normalize(vbf_mjj, cut),
-                weight=weight,
-            )
-
         def skim(region, output_array):
             selections = regions[region]
             cut = selection.all(*selections)
@@ -507,9 +494,9 @@ class categorizer(SkimmerABC):
             # print(output_array[cut].compute())
 
             if "root:" in self._skim_outpath:
-                skim_path = f"{self._skim_outpath}/{self._year}/{dataset}/{region}"
+                skim_path = f"{self._skim_outpath}/{self._year}/{dataset}/parquet/{region}"
             else:
-                skim_path = Path(self._skim_outpath) / self._year / dataset / region
+                skim_path = Path(self._skim_outpath) / self._year / dataset / "parquet" / region
                 skim_path.mkdir(parents=True, exist_ok=True)
             print("Saving skim to: ", skim_path)
 
@@ -520,6 +507,22 @@ class categorizer(SkimmerABC):
                 compute=False,
             )
 
+            allcuts = set([])
+            cut = selection.all(*allcuts)
+            output['cutflow'].fill(dataset=dataset,
+                                    region=region,
+                                    genflavor=normalize(genflavor, None),
+                                    cut=0,
+                                    weight=nominal_weight)
+            for i, cut in enumerate(selections):
+                allcuts.add(cut)
+                cut = selection.all(*allcuts)
+                output['cutflow'].fill(dataset=dataset,
+                                        region=region,
+                                        genflavor=normalize(genflavor, cut),
+                                        cut=i + 1,
+                                        weight=nominal_weight[cut])
+                
         for region in regions:
             if self._save_skim:
                 print(region)
@@ -530,7 +533,6 @@ class categorizer(SkimmerABC):
             for systematic in systematics:
                 if isRealData and systematic is not None:
                     continue
-                fill(region, systematic)
 
         toc = time.time()
         output["filltime"] = toc - tic
