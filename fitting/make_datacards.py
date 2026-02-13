@@ -14,7 +14,7 @@ from hbb.common_vars import LUMI
 rl.util.install_roofit_helpers()
 
 eps=0.001 
-do_systematics = True
+do_systematics = False
 do_muon_CR = True
 
 lumi_err = {

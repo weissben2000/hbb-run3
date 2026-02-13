@@ -7,7 +7,7 @@ def draw_PFratio_QCDMC_common(args):
     tag = args.tag
     year = args.year
 
-    with open(f"results/{tag}/{year}/setup.json") as f:
+    with open(f"results/{tag}/{year}/setup_bdt.json") as f:
         setup = json.load(f)
         cats = setup["categories"]
 

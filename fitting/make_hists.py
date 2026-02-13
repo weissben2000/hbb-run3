@@ -107,11 +107,11 @@ def main(args):
 
     energy_variations = [
         None,
-        "JES",
-        "JER",
-        "UES",
-        'MuonPTScale',
-        'MuonPTRes'
+        # "JES",
+        # "JER",
+        # "UES",
+        # 'MuonPTScale',
+        # 'MuonPTRes'
     ]
 
     systs = [
@@ -159,8 +159,8 @@ def main(args):
     fout = uproot.create(output_file)
 
     # So I can remember the settings I used for each set of results produced
-    os.popen(f'cp setup.json {out_path}')
-    with open('setup.json') as f:
+    os.popen(f'cp setup_bdt.json {out_path}')
+    with open('setup_bdt.json') as f:
         setup = json.load(f)
         cats = setup["categories"]
         obs_cfg = setup["observable"]
@@ -192,7 +192,7 @@ def main(args):
                             events = utils.load_samples(
                                 data_dir,
                                 {process: [dataset]},
-                                columns=columns if "data" in process else columns+c_systs_full,
+                                columns=columns if "data" in process else columns, #\+c_systs_full,
                                 region=cfg["name"],
                                 filters=filters,
                                 variation=var
@@ -203,27 +203,27 @@ def main(args):
 
                             fill_hists(out_hists, events, reg, cfg, obs_cfg, (process in samples_qq), "nominal", var)
 
-                            if "data" not in process:
-                                for syst in c_systs_full:
-                                    fill_hists(out_hists, events, reg, cfg, obs_cfg, (process in samples_qq), f"{syst}", var)
+                        #     if "data" not in process:
+                        #         for syst in c_systs_full:
+                        #             fill_hists(out_hists, events, reg, cfg, obs_cfg, (process in samples_qq), f"{syst}", var)
 
-                        else:   #energy variations
-                            for direction in ["Up", "Down"]:
-                                var_jerc = f"{var}{direction}"
+                        # else:   #energy variations
+                        #     for direction in ["Up", "Down"]:
+                        #         var_jerc = f"{var}{direction}"
 
-                                events = utils.load_samples(
-                                    data_dir,
-                                    {process: [dataset]},
-                                    columns=columns,
-                                    region=cfg["name"],
-                                    filters=filters,
-                                    variation=var_jerc
-                                )
+                        #         events = utils.load_samples(
+                        #             data_dir,
+                        #             {process: [dataset]},
+                        #             columns=columns,
+                        #             region=cfg["name"],
+                        #             filters=filters,
+                        #             variation=var_jerc
+                        #         )
 
-                                if not events:
-                                    continue
+                        #         if not events:
+                        #             continue
 
-                                fill_hists(out_hists, events, reg, cfg, obs_cfg, (process in samples_qq), var_jerc, var_jerc)
+                        #         fill_hists(out_hists, events, reg, cfg, obs_cfg, (process in samples_qq), var_jerc, var_jerc)
 
 
     for name, h in out_hists.items():
