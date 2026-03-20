@@ -66,6 +66,22 @@ common_mc = {
     },
 }
 
+higgs_mc = {
+    "tth-hbb": {"ttHto2B_M-125"},
+    "ggf-hbb": {"GluGluHto2B_PT-200_M-125"},
+    "vh-hbb": {
+        "WplusH_Hto2B_Wto2Q_M-125",
+        "WminusH_Hto2B_Wto2Q_M-125",
+        "ggZH_Hto2B_Zto2Q_M-125",
+        "ZH_Hto2B_Zto2Q_M-125",
+    },
+    "vbf-hbb": {
+        "VBFHto2B_M-125_dipoleRecoilOn",
+    },
+    
+}
+
+
 data_by_year = {
     "2022": {
         "JetMET_Run2022C_single",

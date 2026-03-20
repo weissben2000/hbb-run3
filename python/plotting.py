@@ -259,3 +259,127 @@ def ratio_plot(
     rax.set_xlabel(tot_bkg.axes[0].label)
 
     return fig, (ax, rax)
+
+#For plotting MC only (removes ratio subplot)
+def mc_plot(
+    hist_dict: dict[hist.Hist],
+    # Sample plotting opts
+    sigs: list[str],  # List of samples considered signals  | None = None
+    bkgs: (
+        list[str] | None
+    ) = None,  # List of samples considered background - exclude "onto" sample i.e. QCD
+    onto: str | None = None,  # large background to plot others onto typically QCD
+    # Style opts
+    style: dict | None = None,  # Style YAML
+    ratio_with_uncertainty: bool = False,  # Whether to plot ratio/data uncertainty in the ratio
+    sort_by_yield: bool = True,  # Whether to sort backgrounds by yield
+    legend_title: str | None = None,
+):
+    style = style.copy()
+
+    #MANUALLY SCALE TTBAR:
+    # if "tt" in hist_dict:
+    #     hist_dict["tt"] = hist_dict["tt"]/100
+    #     hist_dict["singletop"] = hist_dict["singletop"]/100
+
+    # merge histograms according to the style
+    merge = extract_mergemap(style)
+    hist_dict = merge_hists(hist_dict, merge)
+
+    # --- NEW SORTING LOGIC ---
+    if sort_by_yield and bkgs:
+        bkg_keys_in_plot = [key for key in bkgs if key in hist_dict]
+        bkg_yields = {key: hist_dict[key].sum() for key in bkg_keys_in_plot}
+        # print(f"Bkg yields before sorting: {bkg_yields}")
+        bkgs = sorted(bkg_yields, key=bkg_yields.get, reverse=True)
+        # print(f"Bkg order after sorting by yield: {bkgs}")
+    # --- END NEW LOGIC ---
+
+    # data = hist_dict.get("data", None)
+    all_bkg_keys = bkgs + ([onto] if onto else []) if bkgs else ([onto] if onto else [])
+    all_bkgs_hists = [hist_dict[k] for k in all_bkg_keys if k in hist_dict]
+    tot_bkg = sum(all_bkgs_hists) if all_bkgs_hists else None
+
+    fig, ax = plt.subplots(1, 1)
+    # plt.subplots_adjust(hspace=0)
+    plt.rcParams.update({"font.size": 24})
+
+    if onto is None:
+        hep.histplot(
+            [hist_dict[k] for k in bkgs + sigs],
+            ax=ax,
+            label=bkgs + sigs,
+            stack=True,
+            histtype="fill",
+            facecolor=[style[k]["color"] for k in bkgs + sigs],
+        )
+    else:
+        if onto in hist_dict:
+            hep.histplot(
+                hist_dict[onto],
+                ax=ax,
+                label=onto,
+                stack=False,
+                histtype="fill",
+                facecolor=style[onto]["color"],
+            )
+
+        _hatch = [None, *[style[k]["hatch"] for k in bkgs + sigs]]
+        _edgecolor = [
+            style[k]["color"] if h not in ["none", None] else None
+            for k, h in zip([onto] + bkgs + sigs, _hatch)
+        ]
+        _facecolor = [
+            "none" if h not in ["none", None] or k == onto else style[k]["color"]
+            for k, h in zip([onto] + bkgs + sigs, _hatch)
+        ]
+        _linewidth = [2] + [0] * len(bkgs + sigs)
+
+        hep.histplot(
+            [hist_dict[onto]] + [hist_dict[k] for k in bkgs + sigs],
+            ax=ax,
+            label=["_", *(bkgs + sigs)],
+            stack=True,
+            histtype="fill",
+            facecolor=_facecolor,
+            edgecolor=_edgecolor,
+            hatch=_hatch,
+            linewidth=_linewidth,
+        )
+
+    # Set the grid
+    ax.xaxis.grid(True, which="major")
+    ax.yaxis.grid(True, which="major")
+
+    # Set the legend
+    ax.legend(ncol=2)
+    # Reformat the legend
+    existing_keys = ax.get_legend_handles_labels()[-1]
+    for key in existing_keys:
+        if key not in style:
+            style[key] = {"label": key}
+    order = np.argsort([list(style.keys()).index(i) for i in existing_keys])
+    handles, labels = ax.get_legend_handles_labels()
+    handles = [handles[i] for i in order]
+    labels = [style[labels[i]]["label"] for i in order]
+    _legend_fontsize = "small" if len(labels) <= 8 else "x-small"
+    _ = format_legend(
+        ax,
+        ncols=2,
+        handles_labels=(handles, labels),
+        bbox_to_anchor=(1, 1),
+        markerscale=0.8,
+        fontsize=_legend_fontsize,
+        labelspacing=0.4,
+        columnspacing=1.5,
+        title=legend_title,
+    )
+    hep.yscale_legend(ax, soft_fail=True)
+    ax.set_xlim(hist_dict[sigs[0]].axes[0].edges[0], hist_dict[sigs[0]].axes[0].edges[-1])
+    
+
+    # Axis labels
+    ax.set_ylabel("Events / GeV")
+    ax.set_xlabel(hist_dict[sigs[0]].axes[0].label)
+
+    return fig, ax

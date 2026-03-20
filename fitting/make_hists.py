@@ -2,18 +2,27 @@
 from __future__ import annotations
 
 import argparse
+import json
+import os
 from pathlib import Path
 
 import hist
-import json
-import os
 import uproot
 
 from hbb import utils
 
+
 def fill_hists(outdict, events, region, reg_cfg, obs_cfg, qq_true, s, j_var=None):
 
-    h = hist.Hist(hist.axis.Regular(obs_cfg["nbins"], obs_cfg["min"], obs_cfg["max"], name=obs_cfg["name"], label=obs_cfg["name"]))
+    h = hist.Hist(
+        hist.axis.Regular(
+            obs_cfg["nbins"],
+            obs_cfg["min"],
+            obs_cfg["max"],
+            name=obs_cfg["name"],
+            label=obs_cfg["name"],
+        )
+    )
 
     bins_list = reg_cfg["bins"]
     bin_pname = reg_cfg["bin_pname"]
@@ -39,15 +48,15 @@ def fill_hists(outdict, events, region, reg_cfg, obs_cfg, qq_true, s, j_var=None
         pre_selection = (obs_br > obs_cfg["min"]) & (obs_br < obs_cfg["max"])
 
         selection_dict = {
-            "pass_bb": pre_selection & (Txbbxcc  > 0.82) & (Txbb  > Txcc),
-            "pass_cc": pre_selection & (Txbbxcc  > 0.82) & (Txcc  > Txbb),
+            "pass_bb": pre_selection & (Txbbxcc > 0.82) & (Txbb > Txcc),
+            "pass_cc": pre_selection & (Txbbxcc > 0.82) & (Txcc > Txbb),
             "fail": pre_selection & (Txbbxcc <= 0.82),
-            "pass": pre_selection & (Txbbxcc  > 0.82)
+            "pass": pre_selection & (Txbbxcc > 0.82),
         }
 
-        cut_bb = (genf == 3)
+        cut_bb = genf == 3
         cut_qq = (genf > 0) & (genf < 3)
-        cut_c = (genf == 2)
+        cut_c = genf == 2
         cut_light = (genf > 0) & (genf < 2)
 
         def fill_h(name, sel):
@@ -56,14 +65,14 @@ def fill_hists(outdict, events, region, reg_cfg, obs_cfg, qq_true, s, j_var=None
                 obs_br[sel],
                 weight=weight_val[sel],
             )
-            if not name in outdict:
+            if name not in outdict:
                 outdict[name] = h.copy()
             else:
                 outdict[name] += h.copy()
             return
 
         for i in range(len(bins_list) - 1):
-            bin_cut = (bin_br > bins_list[i]) & (bin_br < bins_list[i+1]) & pre_selection
+            bin_cut = (bin_br > bins_list[i]) & (bin_br < bins_list[i + 1]) & pre_selection
 
             for category, selection in selection_dict.items():
                 if qq_true:
@@ -86,15 +95,16 @@ def fill_hists(outdict, events, region, reg_cfg, obs_cfg, qq_true, s, j_var=None
 
     return outdict
 
+
 def main(args):
     year = args.year
     tag = args.tag
     do_systs = args.systs
 
     path_to_dir = f"/eos/uscms/store/group/lpchbbrun3/skims/{tag}"
-    
-    samples_qq = ['Wjets','Zjets','EWKW','EWKZ','EWKV']
-    
+
+    samples_qq = ["Wjets", "Zjets", "EWKW", "EWKZ", "EWKV"]
+
     columns = [
         "weight",
         "FatJet0_pt",
@@ -117,36 +127,33 @@ def main(args):
 
     systs = [
         # 'ISRPartonShower',
-        # 'FSRPartonShower', 
+        # 'FSRPartonShower',
         # 'aS_weight',
-        # 'PDF_weight',  
-        # 'PDFaS_weight', 
-        # 'scalevar_7pt', 
+        # 'PDF_weight',
+        # 'PDFaS_weight',
+        # 'scalevar_7pt',
         # 'scalevar_3pt',
-        'pileup',
-        'btagSFb_correlated',
-        'btagSFc_correlated',
-        'btagSFlight_correlated'
+        "pileup",
+        "btagSFb_correlated",
+        "btagSFc_correlated",
+        "btagSFlight_correlated",
     ]
 
     year_systs = [
-        'btagSFb',
-        'btagSFc',
-        'btagSFlight',
+        "btagSFb",
+        "btagSFc",
+        "btagSFlight",
     ]
 
-    cr_systs = {
-        "mucr" : ["muon_ID", "muon_ISO"],
-        "zgcr" : ["photon_ID"]
-    }
+    cr_systs = {"mucr": ["muon_ID", "muon_ISO"], "zgcr": ["photon_ID"]}
 
     data_dirs = {year: Path(path_to_dir) / year}
     if args.year == "Run3":
-        data_dirs={
-            "2022":Path(path_to_dir) / "2022",
-            "2022EE":Path(path_to_dir) / "2022EE",
-            "2023":Path(path_to_dir) / "2023",
-            "2023BPix":Path(path_to_dir) / "2023BPix",
+        data_dirs = {
+            "2022": Path(path_to_dir) / "2022",
+            "2022EE": Path(path_to_dir) / "2022EE",
+            "2023": Path(path_to_dir) / "2023",
+            "2023BPix": Path(path_to_dir) / "2023BPix",
         }
 
     out_path = f"results/{tag}/{year}"
@@ -160,23 +167,23 @@ def main(args):
     fout = uproot.create(output_file)
 
     # So I can remember the settings I used for each set of results produced
-    os.popen(f'cp setup_bdt.json {out_path}')
-    with open('setup_bdt.json') as f:
+    os.popen(f"cp setup_bdt.json {out_path}")
+    with open("setup_bdt.json") as f:
         setup = json.load(f)
         cats = setup["categories"]
         obs_cfg = setup["observable"]
 
-    with open('pmap_run3.json') as f:
+    with open("pmap_run3.json") as f:
         pmap = json.load(f)
-    
+
     filters = [
-       ("FatJet0_pt", ">", 450),
-       ("FatJet0_pt", "<", 1200),
-       ("VBFPair_mjj", ">", -2),
-       ("VBFPair_mjj", "<", 13000),
+        ("FatJet0_pt", ">", 450),
+        ("FatJet0_pt", "<", 1200),
+        ("VBFPair_mjj", ">", -2),
+        ("VBFPair_mjj", "<", 13000),
     ]
 
-    if not obs_cfg["branch_name"] in columns:
+    if obs_cfg["branch_name"] not in columns:
         columns.append(obs_cfg["branch_name"])
 
     out_hists = {}
@@ -188,29 +195,55 @@ def main(args):
 
                         if not var:
                             c_systs_full = systs + [f"{syst}_{year}" for syst in year_systs]
-                            c_systs_full = c_systs_full + cr_systs[reg] if reg in cr_systs else c_systs_full
-                            c_systs_full = [f"{syst}{dir}" for syst in c_systs_full for dir in ["Up", "Down"]]
+                            c_systs_full = (
+                                c_systs_full + cr_systs[reg] if reg in cr_systs else c_systs_full
+                            )
+                            c_systs_full = [
+                                f"{syst}{dir}" for syst in c_systs_full for dir in ["Up", "Down"]
+                            ]
                             events = utils.load_samples(
                                 data_dir,
                                 {process: [dataset]},
-                                columns=columns if (("data" in process) or (not do_systs)) else columns+c_systs_full,
+                                columns=(
+                                    columns
+                                    if (("data" in process) or (not do_systs))
+                                    else columns + c_systs_full
+                                ),
                                 region=cfg["name"],
                                 filters=filters,
-                                variation=var
+                                variation=var,
                             )
 
                             if not events:
                                 continue
 
-                            fill_hists(out_hists, events, reg, cfg, obs_cfg, (process in samples_qq), "nominal", var)
+                            fill_hists(
+                                out_hists,
+                                events,
+                                reg,
+                                cfg,
+                                obs_cfg,
+                                (process in samples_qq),
+                                "nominal",
+                                var,
+                            )
 
                             if do_systs:
                                 if "data" not in process:
                                     for syst in c_systs_full:
-                                        fill_hists(out_hists, events, reg, cfg, obs_cfg, (process in samples_qq), f"{syst}", var)
+                                        fill_hists(
+                                            out_hists,
+                                            events,
+                                            reg,
+                                            cfg,
+                                            obs_cfg,
+                                            (process in samples_qq),
+                                            f"{syst}",
+                                            var,
+                                        )
 
                         if do_systs:
-                            if var:   #energy variations
+                            if var:  # energy variations
                                 for direction in ["Up", "Down"]:
                                     var_jerc = f"{var}{direction}"
 
@@ -220,19 +253,28 @@ def main(args):
                                         columns=columns,
                                         region=cfg["name"],
                                         filters=filters,
-                                        variation=var_jerc
+                                        variation=var_jerc,
                                     )
 
                                     if not events:
                                         continue
 
-                                    fill_hists(out_hists, events, reg, cfg, obs_cfg, (process in samples_qq), var_jerc, var_jerc)
-
+                                    fill_hists(
+                                        out_hists,
+                                        events,
+                                        reg,
+                                        cfg,
+                                        obs_cfg,
+                                        (process in samples_qq),
+                                        var_jerc,
+                                        var_jerc,
+                                    )
 
     for name, h in out_hists.items():
         fout[name] = h
 
     print(f"Histograms saved to {output_file}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Make histograms for a given year.")
@@ -243,12 +285,7 @@ if __name__ == "__main__":
         required=True,
         choices=["2022", "2022EE", "2023", "2023BPix", "Run3"],
     )
-    parser.add_argument(
-        "--tag",
-        help="tag",
-        type=str,
-        required=True
-    )
+    parser.add_argument("--tag", help="tag", type=str, required=True)
     parser.add_argument(
         "--systs",
         action="store_true",
