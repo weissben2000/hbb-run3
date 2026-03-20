@@ -396,7 +396,7 @@ def get_datasets():  ## PRIVATE production with GloParTv2
                 "ggZH_Hto2B_Zto2L_M-125": "/store/group/lpcpfnano/PFNano_Run3/25v2/sixie/mc_2023/ggZH_Hto2B_Zto2L_M-125_TuneCP5_13p6TeV_powheg-pythia8",
                 "ggZH_Hto2B_Zto2Q_M-125": "/store/group/lpcpfnano/PFNano_Run3/25v2/sixie/mc_2023/ggZH_Hto2B_Zto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8",
                 "ggZH_Hto2B_Zto2Nu_M-125": "/store/group/lpcpfnano/PFNano_Run3/25v2/sixie/mc_2023/ggZH_Hto2B_Zto2Nu_M-125_TuneCP5_13p6TeV_powheg-pythia8",
-                "ttHto2B_M-125": "/store/group/lpcpfnano/PFNano_Run3/25v2/sixie/mc_2023/ttHto2B_M-125_TuneCP5_13p6TeV_powheg-pythia8",
+                "ttHto2B_M-125": "/store/group/lpcpfnano/PFNano_Run3/25v2/sixie/mc_2023/TTHto2B_M-125_TuneCP5_13p6TeV_powheg-pythia8",
             },
             "Hcc": {
                 "GluGluHto2C_M-125": "/store/group/lpcpfnano/PFNano_Run3/25v2/lzygala/mc_2023/GluGluHto2C_M-125_TuneCP5_13p6TeV_powheg-minlo-pythia8",
