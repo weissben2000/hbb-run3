@@ -159,6 +159,7 @@ class categorizer(SkimmerABC):
         evaluate_BDT=True,
         btag_eff=False,
         save_skim_nosysts=False,
+        tth_category = True
     ):
         super().__init__()
 
@@ -173,6 +174,7 @@ class categorizer(SkimmerABC):
             self._save_skim = True
         self._skim_outpath = skim_outpath
         self._evaluate_BDT = evaluate_BDT
+        self._tth_category = tth_category
         self._btag_eff = btag_eff
         self._btagger, self._btag_wp = "btagPNetB", "M"
         if year == "2024":
@@ -476,6 +478,19 @@ class categorizer(SkimmerABC):
         selection.add("isvbf", isvbf)
         selection.add("notvbf", isnotvbf)
 
+        #To add a ttH category if requested
+        if self._tth_category:
+            njets = ak.num(goodjets, axis=1)
+            istth = (njets>7)
+            istth = ak.fill_none(isttH, False)
+            isnottth = ak.fill_none(~isttH, True)
+            selection.add("istth", istth)
+            selection.add("nottth", isnottth)
+        else:
+            #if no tth category, fill selections with all True
+            selection.add("istth", ak.full_like(isvbf, True, dtype=bool))
+            selection.add("nottth", ak.full_like(isvbf, True, dtype=bool))
+
         muons = correct_muons(events.Muon, events, self._year, isRealData)
         if shift_name != "nominal" and "Muon" in shift_name:
             var, direction = shift_name.split("_")
@@ -632,6 +647,7 @@ class categorizer(SkimmerABC):
                 "antiak4btagMediumOppHem",
                 "lowmet",
                 "noleptons",
+                "nottth", #always true by default, enable tth_category to use!
                 "notvbf",
                 "not2FJ",
             ],
@@ -644,6 +660,7 @@ class categorizer(SkimmerABC):
                 "antiak4btagMediumOppHem",
                 "lowmet",
                 "noleptons",
+                "nottth",
                 "notvbf",
                 "2FJ",
             ],
@@ -655,8 +672,21 @@ class categorizer(SkimmerABC):
                 "minjetkin",
                 "antiak4btagMediumOppHem",
                 "lowmet",
+                "nottth",
                 "noleptons",
                 "isvbf",
+            ],
+
+            "signal-tth": [
+                "trigger",
+                "lumimask",
+                "metfilter",
+                "ak4jetveto",
+                "minjetkin",
+                "antiak4btagMediumOppHem",
+                "lowmet",
+                "noleptons",
+                "istth",
             ],
             "control-tt": [
                 "muontrigger",
@@ -690,8 +720,7 @@ class categorizer(SkimmerABC):
                         "antiak4btagMediumOppHem",
                         "lowmet",
                         "noleptons",
-                        # "notvbf",
-                        # "not2FJ",
+                        "nottth", #always true by default, enable tth_category to use!
                         "BDTisggF",
                     ],
                     "signal-vh-BDT": [
@@ -703,8 +732,7 @@ class categorizer(SkimmerABC):
                         "antiak4btagMediumOppHem",
                         "lowmet",
                         "noleptons",
-                        # "notvbf",
-                        # "2FJ",
+                        "nottth",
                         "BDTisVH",
                     ],
                     "signal-vbf-BDT": [
@@ -716,7 +744,7 @@ class categorizer(SkimmerABC):
                         "antiak4btagMediumOppHem",
                         "lowmet",
                         "noleptons",
-                        # "isvbf",
+                        "nottth",
                         "BDTisVBF",
                     ],
                 }
