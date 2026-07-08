@@ -46,7 +46,7 @@ def tight_photons(photons: PhotonArray):
     return photons[sel]
 
 
-def good_muons(muons: MuonArray, pt_type):
+def loose_muons(muons: MuonArray, pt_type):
     sel = (
         (getattr(muons, pt_type) > 10)
         & (np.abs(muons.eta) < 2.4)
@@ -58,6 +58,17 @@ def good_muons(muons: MuonArray, pt_type):
         )
     )
     return muons[sel]
+
+def highpt_muons(muons: MuonArray, pt_type):
+    
+    loosemuons = loose_muons(muons, pt_type)
+
+    sel = (
+        (getattr(loosemuons, pt_type) > 30)
+        & (loosemuons.highPtId == 2) #1=pass tracker highPtId, 2=pass global highPtId
+        & (loosemuons.isGlobal)
+    )
+    return loosemuons[sel]
 
 
 def good_electrons(electrons: ElectronArray):

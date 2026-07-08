@@ -42,8 +42,9 @@ pip install xgboost
 # pip install uproot
 # pip install coffea
 # pip install fsspec_xrootd
+python3 -m pip install --user "tritonclient[grpc]"
 
-# run code 
+# run code
 if [[ $BDT == True ]]; then
     if [[ $tth == True ]]; then
         python -u -W ignore $script --BDT --tth --year $year --starti $starti --endi $endi --samples $sample --subsamples $subsample --nano-version ${nano_version} --${run_mode}

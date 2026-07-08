@@ -45,7 +45,8 @@ from .objects import (
     good_ak4jets,
     good_ak8jets,
     good_electrons,
-    good_muons,
+    loose_muons,
+    highpt_muons,
     good_photons,
     set_ak4jets,
     set_ak8jets,
@@ -254,20 +255,16 @@ class categorizer(SkimmerABC):
         """
         return {var: self.process_shift(events, var) for var in total_variations}
 
-    def add_weights(
-        self, weights, events, dataset, btag_jets, muons=None, photons=None
-    ) -> tuple[dict, dict]:
-        """Adds weights and variations, saves totals for all norm preserving weights and variations"""
+    def add_common_weights(self, weights, events, dataset):
+        """
+        Add weights that are not region specific
+        """
+
         weights.add("genweight", events.genWeight)
 
-        btag_SF = ak.ones_like(events.run)
         if not self._skip_syst:
             add_pileup_weight(weights, self._year, events.Pileup.nPU)
             add_ps_weight(weights, events.PSWeight)
-            if not self._btag_eff:
-                btag_SF = add_btag_weights(
-                    weights, btag_jets, self._btagger, self._btag_wp, self._year
-                )
 
             # Easier to save nominal weights for rest of MC with all of the syst names for grabbing columns in post-processing
             # Need to fix
@@ -280,25 +277,66 @@ class categorizer(SkimmerABC):
             #     weights, getattr(events, "LHEScaleWeight", None) if flag_syst else None
             # )
 
+        return
+
+    def add_region_weights(
+        self, region, weights, events, btag_jets=None, muons=None, muon_type="", photons=None
+        ):
+        """
+        Add weights that are region specific, depending on objects queried.
+        Weights will be differentiated by "REGION{region}_" , which will be used for sorting in the partial_weight call
+        """
+
+        weight_str = f"REGION{region}_"
+
+        btag_SF = ak.ones_like(events.run)
+        if not self._skip_syst:
+
+            if not self._btag_eff and btag_jets is not None:
+                btag_SF = add_btag_weights(
+                    weights, btag_jets, self._btagger, self._btag_wp, self._year, alt_str=weight_str
+                )
+
             if muons is not None:
-                add_muon_weights(weights, self._year, muons, self._mupt_type)
+                add_muon_weights(weights, self._year, muons, self._mupt_type, muon_type, alt_str=weight_str)
+
             if photons is not None:
-                add_photon_weights(weights, self._year, photons)
+                add_photon_weights(weights, self._year, photons, alt_str=weight_str)
+
+        return btag_SF
+
+    def get_weight_dict(self, region, weights, dataset) -> tuple[dict, dict]:
+        """
+        Calculate the partial weights and the systematic variations for specified region.
+        Saved to dictionary to be output in skim files.
+        """
+
+        #Sort the region specific weights
+        include_weights = []
+        for weight_key in weights._weights.keys():
+            if "REGION" in weight_key:
+                if region in weight_key:
+                    include_weights.append(weight_key)
+            else:
+                include_weights.append(weight_key)
 
         logger.debug("weights", extra=weights._weights.keys())
-        # logger.debug(f"Weight statistics: {weights.weightStatistics!r}")
-
         # dictionary of all weights and variations
         weights_dict = {}
         # dictionary of total # events for norm preserving variations for normalization in postprocessing
         totals_dict = {}
 
         # nominal
-        weights_dict["weight"] = weights.weight()
+        weights_dict["weight"] = weights.partial_weight(include=include_weights)
 
         # systematics
         for systematic in weights.variations:
-            weights_dict[systematic] = weights.weight(modifier=systematic)
+            if "REGION" in systematic:
+                if region in systematic:
+                    syst_dict = systematic.replace(f"REGION{region}_", "")
+                    weights_dict[syst_dict] = weights.partial_weight(include=include_weights, modifier=systematic)
+            else:
+                weights_dict[systematic] = weights.partial_weight(include=include_weights, modifier=systematic)
 
         ###################### Normalization (Step 1) ######################
         # strip the year from the dataset name
@@ -309,9 +347,9 @@ class categorizer(SkimmerABC):
             weights_dict[key] = val * weight_norm
 
         # save the unnormalized weight, to confirm that it's been normalized in post-processing
-        weights_dict["weight_noxsec"] = weights.weight()
+        weights_dict["weight_noxsec"] = weights.partial_weight(include=include_weights)
 
-        return weights_dict, totals_dict, btag_SF
+        return weights_dict, totals_dict
 
     def process_shift(self, events, shift_name):
 
@@ -320,8 +358,6 @@ class categorizer(SkimmerABC):
         selection = PackedSelection()
         output = self.make_output() if not self._btag_eff else self.make_btag_output()
         weights = Weights(None, storeIndividual=True)
-        weights_mu = Weights(None, storeIndividual=True)
-        weights_gamma = Weights(None, storeIndividual=True)
         if shift_name == "nominal" and not isRealData and not self._btag_eff:
             output["sumw"][dataset] = ak.sum(events.genWeight)
 
@@ -511,21 +547,48 @@ class categorizer(SkimmerABC):
             var, direction = shift_name.split("_")
             self._mupt_type = f"{mupt_variations[var]}_{direction.lower()}"
 
-        goodmuon = good_muons(muons, self._mupt_type)
-        nmuons = ak.num(goodmuon, axis=1)
-        leadingmuon = ak.firsts(goodmuon)
-        ttbarmuon = ak.firsts(goodmuon[getattr(goodmuon, self._mupt_type) > 55.0])
+        loosemuon = loose_muons(muons, self._mupt_type)
+        highptmuon = highpt_muons(muons, self._mupt_type)
+        nmuons = ak.num(loosemuon, axis=1)
+        ttbarmuon = ak.firsts(loosemuon)
+        leadingmuon = loosemuon[:, :1]
+        ttbarmuon_sf = leadingmuon[getattr(leadingmuon, self._mupt_type) > 55.0]
         # low pt muons break sf (lower bound 15GeV)
+        # ak.firsts records array breaks the evaluator also, the inverse breaks selection.add
+            # TODO figure this out later
+
+        zmm_muons = highptmuon[:, :2]   #Collection to pass for sfs
+        zmm_lead = ak.firsts(zmm_muons[:, 0:1])
+        zmm_sublead = ak.firsts(zmm_muons[:, 1:2])
+        nmuons_zmm = ak.num(highptmuon, axis=1)
+
+        zmm_mll = (zmm_lead + zmm_sublead).mass
+        zmm_charge = zmm_lead.charge * zmm_sublead.charge   # >0 same sign, <0 opp sign
+        zmm_pt = getattr(zmm_lead, self._mupt_type) + getattr(zmm_sublead, self._mupt_type)
+
+        dR_leadm = goodfatjets.delta_r(zmm_lead)
+        dR_subleadm = goodfatjets.delta_r(zmm_sublead)
+        ak8_outside_dimuon = goodfatjets[(dR_leadm > 0.8) & (dR_subleadm > 0.8)]
+        nak8_zmm = ak.num(ak8_outside_dimuon, axis=1)
 
         goodelectron = good_electrons(events.Electron)
         nelectrons = ak.num(goodelectron, axis=1)
 
         selection.add("noleptons", (nmuons == 0) & (nelectrons == 0))
         selection.add("onemuon", (nmuons == 1) & (nelectrons == 0))
+        selection.add("twoloosemuon", (nmuons == 2) & (nelectrons == 0))
+        selection.add("twomuon_zmm", (nmuons_zmm == 2) & (nelectrons == 0))
         selection.add(
-            "muonkin", (getattr(leadingmuon, self._mupt_type) > 55.0) & (abs(leadingmuon.eta) < 2.1)
+            "muonkin_leadzmm", (getattr(zmm_lead, self._mupt_type) > 60.0)
         )
-        selection.add("muonDphiAK8", abs(leadingmuon.delta_phi(candidatejet)) > 2 * np.pi / 3)
+        selection.add(
+            "muonpairkin_zmm", (zmm_mll >= 80) & (zmm_mll <= 100) & (zmm_charge < 0) & (zmm_pt > 300)
+        )
+
+        selection.add(
+            "muonkin", (getattr(ttbarmuon, self._mupt_type) > 55.0) & (abs(ttbarmuon.eta) < 2.1)
+        )
+        selection.add("muonDphiAK8", abs(ttbarmuon.delta_phi(candidatejet)) > 2 * np.pi / 3)
 
         goodphotons = good_photons(events.Photon)
         nphotons = ak.num(goodphotons, axis=1)
@@ -680,18 +743,29 @@ class categorizer(SkimmerABC):
             genflavor = ak.zeros_like(candidatejet.pt)
             genBosonPt = ak.zeros_like(candidatejet.pt)
         else:
+
+            self.add_common_weights(weights, events, dataset)
             # signal regions
-            weights_dict, totals_temp, btag_SF = self.add_weights(
-                weights, events, dataset, ak4_opphem_ak8
+            btag_SF = self.add_region_weights(
+                "signal", weights, events, btag_jets=ak4_opphem_ak8
             )
             # muon region
-            weights_dict_mu, totals_temp_mu, btag_SF_mu = self.add_weights(
-                weights_mu, events, dataset, ak4_outside_ak8, muons=ttbarmuon
+            btag_SF_mu = self.add_region_weights(
+                "control-tt", weights, events, btag_jets=ak4_outside_ak8, muons=ttbarmuon_sf, muon_type="loose"
             )
             # gamma region
-            weights_dict_gamma, totals_temp_gamma, btag_SF_gamma = self.add_weights(
-                weights_gamma, events, dataset, ak4_outside_ak8, photons=vgammaphoton
+            btag_SF_gamma = self.add_region_weights(
+                "control-zgamma", weights, events, btag_jets=ak4_outside_ak8, photons=vgammaphoton
             )
+            # zmumu muon region 
+            btag_SF_zmm = self.add_region_weights(
+                "control-zmumu", weights, events, muons=zmm_muons, muon_type="highpt"
+            )
+
+            weights_dict, totals_temp = self.get_weight_dict("signal", weights, dataset)
+            weights_dict_mu, totals_temp_mu = self.get_weight_dict("control-tt", weights, dataset)
+            weights_dict_gamma, totals_temp_gamma = self.get_weight_dict("control-zgamma", weights, dataset)
+            weights_dict_zmm, totals_temp_zmm = self.get_weight_dict("control-zmumu", weights, dataset)
 
             for d, gen_func in gen_selection_dict.items():
                 if d in dataset:
@@ -779,46 +853,59 @@ class categorizer(SkimmerABC):
                 "atleastonephoton",
                 "antiak4btagMedium",
             ],
+            "control-zmumu": [
+                "muontrigger",
+                "lumimask",
+                "metfilter",
+                "twoloosemuon",
+                "twomuon_zmm",
+                "muonkin_leadzmm",
+                "muonpairkin_zmm",
+            ],
         }
         if self._evaluate_BDT:
+            #replace orthogonality cuts with BDT score
             regions.update(
                 {
-                    "signal-ggf-BDT": [
-                        "trigger",
-                        "lumimask",
-                        "metfilter",
-                        "ak4jetveto",
-                        "minjetkin",
-                        "antiak4btagMediumOppHem",
-                        "lowmet",
-                        "noleptons",
-                        "nottth", 
-                        "BDTisggF",
-                    ],
-                    "signal-vh-BDT": [
-                        "trigger",
-                        "lumimask",
-                        "metfilter",
-                        "ak4jetveto",
-                        "minjetkin",
-                        "antiak4btagMediumOppHem",
-                        "lowmet",
-                        "noleptons",
-                        "nottth",
-                        "BDTisVH",
-                    ],
-                    "signal-vbf-BDT": [
-                        "trigger",
-                        "lumimask",
-                        "metfilter",
-                        "ak4jetveto",
-                        "minjetkin",
-                        "antiak4btagMediumOppHem",
-                        "lowmet",
-                        "noleptons",
-                        "nottth",
-                        "BDTisVBF",
-                    ],
+                    # "signal-ggf-BDT": [
+                    #     "trigger",
+                    #     "lumimask",
+                    #     "metfilter",
+                    #     "ak4jetveto",
+                    #     "minjetkin",
+                    #     "antiak4btagMediumOppHem",
+                    #     "lowmet",
+                    #     "noleptons",
+                    #     "nottth", 
+                    #     "BDTisggF",
+                    # ],
+                    # "signal-vh-BDT": [
+                    #     "trigger",
+                    #     "lumimask",
+                    #     "metfilter",
+                    #     "ak4jetveto",
+                    #     "minjetkin",
+                    #     "antiak4btagMediumOppHem",
+                    #     "lowmet",
+                    #     "noleptons",
+                    #     "nottth",
+                    #     "BDTisVH",
+                    # ],
+                    # "signal-vbf-BDT": [
+                    #     "trigger",
+                    #     "lumimask",
+                    #     "metfilter",
+                    #     "ak4jetveto",
+                    #     "minjetkin",
+                    #     "antiak4btagMediumOppHem",
+                    #     "lowmet",
+                    #     "noleptons",
+                    #     "nottth",
+                    #     "BDTisVBF",
+                    # ],
+                    "signal-ggf-BDT": [x for x in regions["signal-ggf"] if x not in ["notvbf", "not2FJ"]] + ["BDTisggF"],
+                    "signal-vh-BDT": [x for x in regions["signal-vh"] if x not in ["notvbf", "2FJ"]] + ["BDTisVH"],
+                    "signal-vbf-BDT": [x for x in regions["signal-vbf"] if x not in ["isvbf"]] + ["BDTisVBF"],
                 }
             )
             if self._tth_category:
@@ -916,6 +1003,24 @@ class categorizer(SkimmerABC):
             }
             if self._evaluate_BDT:
                 output_array.update({"BDT_score": bdt_scores})
+
+            output_array_zmm = {
+                "Zmm_MuonLead_pt": (getattr(zmm_lead, self._mupt_type)),
+                "Zmm_MuonLead_eta": zmm_lead.eta,
+                "Zmm_MuonLead_phi": zmm_lead.phi,
+                "Zmm_MuonLead_charge": zmm_lead.charge,
+
+                "Zmm_MuonSublead_pt": (getattr(zmm_sublead, self._mupt_type)),
+                "Zmm_MuonSubLead_eta": zmm_sublead.eta,
+                "Zmm_MuonSubLead_phi": zmm_sublead.phi,
+                "Zmm_MuonSubLead_charge": zmm_sublead.charge,
+
+                "Zmm_MuonPair_mll": zmm_mll,
+                "Zmm_MuonPair_pt": zmm_pt,
+
+                "Zmm_nak8": nak8_zmm,
+                "Zmm_ntightPhotons": ntightphotons,
+            }
 
             # reduced output array for energy variation shift
             energy_var_array = {
@@ -1068,7 +1173,10 @@ class categorizer(SkimmerABC):
                         skim(region, ak.zip({**output_array, **output_array_extra}, depth_limit=1))
                     else:
                         if isRealData:
-                            skim(region, ak.zip(output_array, depth_limit=1))
+                            if region == "control-zmumu":
+                                skim(region, ak.zip({**output_array, **output_array_zmm}, depth_limit=1))
+                            else:
+                                skim(region, ak.zip(output_array, depth_limit=1))
                         else:
                             if "signal" in region:
                                 skim(
@@ -1093,6 +1201,16 @@ class categorizer(SkimmerABC):
                                 skim(
                                     region,
                                     ak.zip({**output_array, **weights_dict_gamma}, depth_limit=1),
+                                )
+                            elif region == "control-zmumu":
+                                output_array["weight"] = (
+                                    ak.ones_like(events.run)
+                                    if isRealData
+                                    else weights_dict_zmm["weight"]
+                                )
+                                skim(
+                                    region,
+                                    ak.zip({**output_array, **output_array_zmm, **weights_dict_zmm}, depth_limit=1),
                                 )
 
             else:  # energy variation shift case
@@ -1126,6 +1244,18 @@ class categorizer(SkimmerABC):
                                     region,
                                     ak.zip(
                                         {**energy_var_array, **weights_dict_gamma}, depth_limit=1
+                                    ),
+                                )
+                            elif region == "control-zmumu":
+                                output_array["weight"] = (
+                                    ak.ones_like(events.run)
+                                    if isRealData
+                                    else weights_dict_zmm["weight"]
+                                )
+                                skim(
+                                    region,
+                                    ak.zip(
+                                        {**energy_var_array, **output_array_zmm, **weights_dict_zmm}, depth_limit=1
                                     ),
                                 )
 

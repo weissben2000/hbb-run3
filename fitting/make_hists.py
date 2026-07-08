@@ -25,6 +25,7 @@ from hbb import utils
 REGION_MAP = {
     "zgcr": "control-zgamma",
     "mucr": "control-tt",
+    "zmmcr": "control-zmumu",
     "vh": "signal-vh",
     "vbf": "signal-vbf",
     "ggf": "signal-ggf",
@@ -87,21 +88,35 @@ def fill_binned_histogram(
             trigger = data["Photon200"] | data["Photon110EB_TightID_TightIso"]
             topo_cuts = (dphi > 2.2) & (met_pt < 50) & (data["Photon0_pt"] > 120)
             pre_selection = basic_cuts & topo_cuts & trigger & (pt > pt_min)
+        elif "zmumu" in actual_reg_name:
+            # Z(mumu) CR: observable is mll, bin variable is dimuon pair pt
+            basic_cuts = (var_series > obs_min) & (var_series < obs_max)
+            pre_selection = basic_cuts & (bin_data > pt_min)
         else:
             # Lara's Signal Region logic
             pre_selection = basic_cuts & (pt > pt_min)
 
-        Txcc = data["FatJet0_ParTPXccVsQCD"]
-        Txbb = data["FatJet0_ParTPXbbVsQCD"]
-        Txbbxcc = data["FatJet0_ParTPXbbXcc"]
-
-        selection_dict = {
-            "pass_bb": pre_selection & (Txbbxcc > working_point) & (Txbb > Txcc),
-            "pass_cc": pre_selection & (Txbbxcc > working_point) & (Txcc > Txbb),
-            "fail": pre_selection & (Txbbxcc <= working_point),
-            "pass": pre_selection & (Txbbxcc > working_point),
-            "inclusive": pre_selection,
-        }
+        if "zmumu" in actual_reg_name:
+            # Only inclusive category for zmumu CR — no Txbb pass/fail
+            selection_dict = {"inclusive": pre_selection}
+        else:
+            Txcc = data["FatJet0_ParTPXccVsQCD"]
+            Txbb = data["FatJet0_ParTPXbbVsQCD"]
+            if setup.get("use_modified_disc", False):
+                # Modified discriminant: (Xbb+Xcc) / (Xbb+Xcc+QCD+Xcs)
+                # Penalises W→cs events in the denominator
+                _num = data["FatJet0_ParTPXbb"] + data["FatJet0_ParTPXcc"]
+                _den = (_num + data["FatJet0_ParTPQCD"] + data["FatJet0_ParTPXcs"]).replace(0, np.nan)
+                Txbbxcc = (_num / _den).fillna(0.0)
+            else:
+                Txbbxcc = data["FatJet0_ParTPXbbXcc"]
+            selection_dict = {
+                "pass_bb": pre_selection & (Txbbxcc > working_point) & (Txbb > Txcc),
+                "pass_cc": pre_selection & (Txbbxcc > working_point) & (Txcc > Txbb),
+                "fail": pre_selection & (Txbbxcc <= working_point),
+                "pass": pre_selection & (Txbbxcc > working_point),
+                "inclusive": pre_selection,
+            }
 
         # --- 4. FILLING ---
         for category, selection in selection_dict.items():
@@ -181,6 +196,8 @@ def main(args):
         # Determine Data Stream (e.g., EGammadata for zgamma)
         if "zgamma" in region_to_load:
             data_map_key = "EGammadata"
+        elif "zmumu" in region_to_load:
+            data_map_key = "Muondata"
         elif "tt" in region_to_load:
             data_map_key = "Muondata"
         else:
@@ -226,6 +243,14 @@ def main(args):
             "FatJet0_ParTPXbbXcc",
             "GenFlavor",
         ]
+        if setup.get("use_modified_disc", False):
+            # Raw ParT probabilities needed to compute modified discriminant on-the-fly
+            cols += [
+                "FatJet0_ParTPXbb",
+                "FatJet0_ParTPXcc",
+                "FatJet0_ParTPQCD",
+                "FatJet0_ParTPXcs",
+            ]
         if data_map_key == "EGammadata":
             cols += [
                 "Photon0_pt",
@@ -245,6 +270,24 @@ def main(args):
         if obs_branch not in cols:
             cols.append(obs_branch)
 
+        # ------------------------------------------------------------------
+        # Build loose PyArrow row filters from the setup config.
+        # These are applied at read time (predicate pushdown) — rows that
+        # fail are never loaded into RAM, which is critical for large MC
+        # samples like GJets that have O(100M) events in the parquet.
+        # Use slightly looser cuts than the analysis selection so we don't
+        # accidentally lose events at bin edges.
+        # ------------------------------------------------------------------
+        pq_filters = [
+            ("FatJet0_msd", ">=", float(obs["min"])),
+            ("FatJet0_msd", "<=", float(obs["max"])),
+            ("FatJet0_pt",  ">=", float(pt_bins[0])),
+        ]
+        if "zgamma" in region_to_load:
+            # Photon0_pt > 120 is the analysis cut; pre-filter at 100 to
+            # keep a small margin while cutting ~90% of low-pT GJets rows.
+            pq_filters.append(("Photon0_pt", ">=", 100.0))
+
         for syst in systs_to_run:
             print(f"\n>>> Running Systematic Pass: {syst}")
             is_folder = any(fs in syst for fs in folder_systs)
@@ -260,13 +303,14 @@ def main(args):
                 h = hist.Hist(axis_var, axis_bin, axis_cat, axis_flav)
                 for dataset in datasets:
                     events = utils.load_samples(
-                        data_dir=Path(
-                            f"/eos/uscms/store/group/lpchbbrun3/bweiss/{args.tag}/{args.year}"
+                        data_dir=Path(args.data_dir) if args.data_dir else Path(
+                            f"/eos/uscms/store/group/lpchbbrun3/skims/{args.tag}/{args.year}"
                         ),
                         samples={process: [dataset]},
                         columns=cols,
                         region=region_to_load,
                         variation=variation,
+                        filters=pq_filters,
                     )
                     if events:
                         # Pass the dynamic branch
@@ -314,13 +358,22 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Unified Histogram Maker for Signal and CR")
-    parser.add_argument("--year", required=True, choices=["2022", "2022EE", "2023", "2023BPix"])
-    parser.add_argument("--tag", required=True, help="Tag for the skims directory (e.g., 26Feb03)")
+    parser.add_argument("--year", required=True, choices=["2022", "2022EE", "2023", "2023BPix", "2024"])
+    parser.add_argument("--tag", default=None, help="Tag for the skims directory (e.g., 26Feb03). Required if --data-dir is not provided.")
     parser.add_argument("--setup", required=True, help="Path to setup.json file")
     parser.add_argument("--outdir", default="results", help="Directory to save ROOT files")
     parser.add_argument("--save-root", action="store_true", help="Actually write the ROOT file")
+    parser.add_argument(
+        "--data-dir", default=None,
+        help="Override the full path to the parquet directory for this year, "
+             "e.g. /eos/uscms/store/group/lpchbbrun3/gmachado/Test_v15/2024 "
+             "Skips the --tag-based path construction.",
+    )
 
     args = parser.parse_args()
+
+    if args.tag is None and args.data_dir is None:
+        parser.error("--tag is required when --data-dir is not provided.")
 
     # Ensure outdir exists before starting
     Path(args.outdir).mkdir(parents=True, exist_ok=True)
