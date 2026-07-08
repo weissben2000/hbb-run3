@@ -65,7 +65,8 @@ def rhalphabet(args):
     # ---------------------------------------------------------
 
     # Files & naming
-    root_file_name = config.get("root_filename", "signalregion.root").replace("{year}", year)
+    # root_file_name = config.get("root_filename", "signalregion.root").replace("{year}", year)
+    root_file_name = config.get("root_filename", f"fitting_{year}_signal_msd.root").replace("{year}", year)
 
     # [FIXED] Define infile_path here!
     infile_path = Path(args.indir) / root_file_name if args.indir else working_dir / root_file_name
@@ -602,8 +603,9 @@ def rhalphabet(args):
                 tqqpasscc.setParamEffect(tqqnormSF, 1 * tqqnormSF)
                 tqqfail.setParamEffect(tqqnormSF, 1 * tqqnormSF)
 
-    muonCR_model = rl.Model('muonCR_'+year)
+    
     if do_muon_CR:
+        muonCR_model = rl.Model('muonCR_'+year)
         templates = {}
         samps = ['QCD','ttbar','singlet','Wjets','Zjetsc','Zjetslight','Zjetsbb']
         for region in ['pass_bb_', 'pass_cc_', 'fail_']:
@@ -684,7 +686,7 @@ def rhalphabet(args):
     with (datacard_dir / f"{analysis}Model_{year}.pkl").open("wb") as fout:
         pickle.dump(model, fout)
     modeldir = datacard_dir / f"{analysis}Model_{year}"
-    muonCR_model.renderCombine(modeldir)
+    
     model.renderCombine(modeldir)
     print(f"Datacards saved to {modeldir}")
 
@@ -696,6 +698,7 @@ def rhalphabet(args):
         with Path(f"{modeldir}/{ch.name}.txt").open("a") as f:
             f.write("\nqcd_norm rateParam * qcd 1.0 [0,20]\n")
     if do_muon_CR:
+        muonCR_model.renderCombine(modeldir)
         for ch in muonCR_model:
             if "/" in ch.name:
                 continue

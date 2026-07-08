@@ -73,7 +73,7 @@ def get_template(filename, sName, region, ptbin, cat, obs, syst):
         name += f"_pt{ptbin}_"
     elif cat.startswith("vbf"):
         name += f"_mjj{ptbin}_"
-    elif cat.startswith(("vh", "mucr", "zgcr")):
+    elif cat.startswith(("vh", "tth", "mucr", "zgcr")):
         name += f"_pt{ptbin}_"
 
     name += f"{sName}_{syst}"

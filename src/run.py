@@ -90,6 +90,7 @@ def run(year: str, fileset: dict, args: argparse.Namespace):
         nano_version=args.nano_version,
         save_skim=args.save_skim,
         evaluate_BDT=args.BDT,
+        tth_category=args.tth,
         skim_outpath="outparquet",
         btag_eff=args.btag_eff,
         save_skim_nosysts=args.save_skim_nosysts,
@@ -235,6 +236,12 @@ if __name__ == "__main__":
         "--BDT",
         action="store_true",
         help="Evaluate BDT scores and use for categorization",
+        default=False,
+    )
+    parser.add_argument(
+        "--tth",
+        action="store_true",
+        help="Adds a cutbased tth SR category",
         default=False,
     )
     group = parser.add_mutually_exclusive_group()

@@ -40,11 +40,16 @@ def draw(args, index: int, region: str, cat: str, logscale: bool = True):
     if cat in ("vbfhi", "vbflo", "vbf"):
         thisbin = f"mjj{index + 1}"
         thisbin_fit = f"ptbin0{cat}"
-        name = f"vbf_{region}_{thisbin}_Jetdata_nominal"
-    else:
-        name = f"{cat}_{region}_{thisbin}_Jetdata_nominal"
+        # name = f"vbf_{region}_{thisbin}_Jetdata_nominal"
+        name = f"vbf_{region}_{thisbin}_data_obs_nominal"
 
-    dataf = ROOT.TFile(f"{common_dir}/signalregion.root", "READ")
+    else:
+        name = f"{cat}_{region}_{thisbin}_data_obs_nominal"
+
+    print(name)
+    # dataf = ROOT.TFile(f"{common_dir}/signalregion.root", "READ")
+    dataf = ROOT.TFile(f"{common_dir}/fitting_{year}_signal_msd.root", "READ")
+
     if not dataf or dataf.IsZombie():
         raise RuntimeError("Could not open signalregion.root")
 
@@ -65,7 +70,7 @@ def draw(args, index: int, region: str, cat: str, logscale: bool = True):
             data_obs.SetBinContent(i, 0)
             data_obs.SetBinError(i, 0)
 
-    filename = f"{common_dir}/datacards/testModel_{year}/fitDiagnosticsTest.root"
+    filename = f"{common_dir}/datacards/srModel_{year}/fitDiagnosticsTest.root"
     out_name_plot = f"{thisbin_fit}{region.replace('_', '')}{year}"
 
     f = ROOT.TFile(filename, "READ")
@@ -78,8 +83,10 @@ def draw(args, index: int, region: str, cat: str, logscale: bool = True):
     ggF.Reset()
     VH = data_obs.Clone("VH_empty")
     VH.Reset()
-    bkgHiggs = data_obs.Clone("bkgHiggs_empty")
-    bkgHiggs.Reset()
+    ttH = data_obs.Clone("ttH_empty")
+    ttH.Reset()
+    # bkgHiggs = data_obs.Clone("bkgHiggs_empty")
+    # bkgHiggs.Reset()
     VV = data_obs.Clone("VV_empty")
     VV.Reset()
     singlet = data_obs.Clone("singlet_empty")
@@ -98,6 +105,7 @@ def draw(args, index: int, region: str, cat: str, logscale: bool = True):
     qcd.Reset()
     TotalBkg = data_obs.Clone("TotalBkg_empty")
     TotalBkg.Reset()
+    # print("QCD in data:", qcd.Integral())
 
     for year in year_loop:
     
@@ -110,11 +118,12 @@ def draw(args, index: int, region: str, cat: str, logscale: bool = True):
             histdirname = f"shapes_fit_s/{name_plot}/"
         
         tmp_VBF = f.Get(histdirname + "VBF")
+        # print(histdirname + "VBF")
         if(tmp_VBF):
             VBF.Add(tmp_VBF)
-        tmp = f.Get(histdirname + "ggF")
-        if tmp:
-            ggF.Add(tmp)
+        tmp_ggF = f.Get(histdirname + "ggF")
+        if tmp_ggF:
+            ggF.Add(tmp_ggF)
         tmp_wh = f.Get(histdirname + "WH")
         if tmp_wh:
             VH.Add(tmp_wh)
@@ -123,7 +132,7 @@ def draw(args, index: int, region: str, cat: str, logscale: bool = True):
             VH.Add(tmp_zh)
         tmp_tth = f.Get(histdirname + "ttH")
         if tmp_tth:
-            bkgHiggs.Add(tmp_tth)
+            ttH.Add(tmp_tth)
         tmp_vv = f.Get(histdirname + "VV")
         if tmp_vv:
             VV.Add(tmp_vv)
@@ -163,7 +172,7 @@ def draw(args, index: int, region: str, cat: str, logscale: bool = True):
         tmp_tb = f.Get(histdirname + "total_background")
         if tmp_tb:
             TotalBkg.Add(tmp_tb)
-
+    # print("QCD in MC:", qcd.Integral())
     # VBF
     VBF, scale = scale_by_bin_width(VBF)
     VBF.SetLineColor(ROOT.kGreen + 1)
@@ -185,10 +194,11 @@ def draw(args, index: int, region: str, cat: str, logscale: bool = True):
     VH.SetLineWidth(3)
 
     # bkg Higgs
-    bkgHiggs, scale = scale_by_bin_width(bkgHiggs)
-    bkgHiggs.SetLineWidth(1)
-    bkgHiggs.SetLineColor(ROOT.kBlack)
-    bkgHiggs.SetFillColor(ROOT.kOrange)
+    ttH, scale = scale_by_bin_width(ttH)
+    ttH.SetLineColor(ROOT.kOrange + 1)
+    ttH.SetMarkerColor(ROOT.kOrange + 1)
+    ttH.SetLineStyle(2)
+    ttH.SetLineWidth(3)
 
     # VV
     VV, scale = scale_by_bin_width(VV)
@@ -260,7 +270,7 @@ def draw(args, index: int, region: str, cat: str, logscale: bool = True):
 
     bkg = ROOT.THStack("bkg", "")
     if logscale:
-        bkg.Add(bkgHiggs)
+        # bkg.Add(bkgHiggs)
         bkg.Add(VV)
         bkg.Add(singlet)
         bkg.Add(ttbar)
@@ -278,7 +288,7 @@ def draw(args, index: int, region: str, cat: str, logscale: bool = True):
         bkg.Add(ttbar)
         bkg.Add(singlet)
         bkg.Add(VV)
-        bkg.Add(bkgHiggs)
+        # bkg.Add(bkgHiggs)
 
     ROOT.gStyle.SetOptTitle(0)
     ROOT.gStyle.SetOptStat(0)
@@ -317,7 +327,7 @@ def draw(args, index: int, region: str, cat: str, logscale: bool = True):
     print("ttbar:", ttbar.Integral())
     print("singlet:", singlet.Integral())
     print("VV:", VV.Integral())
-    print("bkgHiggs:", bkgHiggs.Integral())
+    # print("bkgHiggs:", bkgHiggs.Integral())
 
     TotalBkg.Draw("e2")
     bkg.Draw("histsame")
@@ -345,7 +355,8 @@ def draw(args, index: int, region: str, cat: str, logscale: bool = True):
     leg.AddEntry(ttbar, "t#bar{t}", "f")
     leg.AddEntry(singlet, "Single t", "f")
     leg.AddEntry(VV, "VV", "f")
-    leg.AddEntry(bkgHiggs, "Bkg. H", "f")
+    # leg.AddEntry(bkgHiggs, "Bkg. H", "f")
+    leg.AddEntry(ttH, "ttH", "l")
     leg.AddEntry(ggF, "ggF", "l")
     leg.AddEntry(VBF, "VBF", "l")
     leg.AddEntry(VH, "VH", "l")
@@ -386,6 +397,8 @@ def draw(args, index: int, region: str, cat: str, logscale: bool = True):
         text2 = f"ggF category p_{{T}} bin {index+1}"
     elif cat.lower() in ("vbfhi", "vbflo", "vbf"):
         text2 = f"VBF category m_{{jj}} bin {index+1}"
+    elif cat.lower() == "ttH":
+        text2 = f"ttH category p_{{T}} bin {index+1}"
     else:
         text2 = f"VH category p_{{T}} bin {index+1}"
     l4.DrawLatex(0.2, 0.72, text2)
@@ -404,6 +417,8 @@ def draw(args, index: int, region: str, cat: str, logscale: bool = True):
     ggF_sub.Reset()
     VH_sub = VH.Clone("VH_sub")
     VH_sub.Reset()
+    ttH_sub = VH.Clone("ttH_sub")
+    ttH_sub.Reset()
 
     nbins = TotalBkg_sub.GetNbinsX()
     for i in range(1, nbins + 1):
@@ -470,7 +485,7 @@ if __name__ == "__main__":
         help="year",
         type=str,
         required=True,
-        choices=["2022", "2022EE", "2023", "2023BPix","Run3"],
+        choices=["2022", "2022EE", "2023", "2023BPix","Run3", "2024"],
     )
     parser.add_argument(
         "--tag",
@@ -490,6 +505,6 @@ if __name__ == "__main__":
     for reg in ["fail", "pass_bb", "pass_cc"]:
         draw(args, index=0, region=reg, cat="vbf", logscale=False)
         # draw(args, index=1, region=reg, cat="vbfhi", logscale=False)
-        for cat in ["vh", "ggf"]:
+        for cat in ["vh", "ggf","tth"]:
             for i in range(0, 1):
                 draw(args, index=i, region=reg, cat=cat, logscale=False)

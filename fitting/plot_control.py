@@ -58,7 +58,8 @@ def plot_by_process(
     if not first_hist:
         print(f"All histograms are empty for {category} category. Skipping plot.")
         return
-    pt_axis = first_hist.axes["pt1"]
+    # print(first_hist)
+    pt_axis = first_hist.axes["pt"]
 
     if ptinclusive:
         loop_indices = ["inclusive"]
@@ -515,9 +516,9 @@ def main(args):
                 data_yield = histograms_tmp.get(current_data_key, hist.Hist()).sum()
                 qcd_yield = histograms_tmp.get("QCD", hist.Hist()).sum()
 
-                print(f"\nLoading {variable} histograms for year {year}...")
+                print(f"\nLoading {region_key} {variable} histograms for year {year}...")
                 print(f"  Year {year}: Data={data_yield:.2f}, QCD={qcd_yield:.2f}")
-
+                print(pkl_path)
                 for process, h in histograms_tmp.items():
                     if process in histograms:
                         histograms[process] += h

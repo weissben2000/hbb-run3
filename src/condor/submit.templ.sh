@@ -24,6 +24,13 @@ done
         sleep 60
     done
 )
+
+xrdcp  -f "${t2_prefixes}/store/user/lpchbbrun3/bweiss/run.py" hbb-run3/src/
+xrdcp  -f "${t2_prefixes}/store/user/lpchbbrun3/bweiss/objects.py" hbb-run3/src/hbb/processors/
+xrdcp  -f "${t2_prefixes}/store/user/lpchbbrun3/bweiss/categorizer.py" hbb-run3/src/hbb/processors/
+xrdcp  -f "${t2_prefixes}/store/user/lpchbbrun3/bweiss/MultiBDT_wTTH_26Mar26_features.csv" hbb-run3/src/hbb/data/
+xrdcp  -f "${t2_prefixes}/store/user/lpchbbrun3/bweiss/MultiBDT_wTTH_26Mar26.json" hbb-run3/src/hbb/data/
+
 cd hbb-run3 || exit
 
 commithash=$$(git rev-parse HEAD)
@@ -31,11 +38,20 @@ echo "https://github.com/DAZSLE/hbb-run3/commit/$${commithash}" > commithash.txt
 
 pip install -e .
 pip install xgboost
+# pip install dask
+# pip install uproot
+# pip install coffea
+# pip install fsspec_xrootd
 
 # run code 
 if [[ $BDT == True ]]; then
-    python -u -W ignore $script --BDT --year $year --starti $starti --endi $endi --samples $sample --subsamples $subsample --nano-version ${nano_version} --${run_mode}
-    echo "BDT option enabled!"
+    if [[ $tth == True ]]; then
+        python -u -W ignore $script --BDT --tth --year $year --starti $starti --endi $endi --samples $sample --subsamples $subsample --nano-version ${nano_version} --${run_mode}
+        echo "BDT and tth options enabled!"
+    else
+        python -u -W ignore $script --BDT --year $year --starti $starti --endi $endi --samples $sample --subsamples $subsample --nano-version ${nano_version} --${run_mode}
+        echo "BDT option enabled! tth not enabled!"
+    fi
 else
     python -u -W ignore $script --year $year --starti $starti --endi $endi --samples $sample --subsamples $subsample --nano-version ${nano_version} --${run_mode}
 fi

@@ -12,6 +12,7 @@ import hist
 import matplotlib.pyplot as plt
 import mplhep as hep
 import yaml
+import json
 from plotting import ratio_plot, mc_plot
 
 from hbb.common_vars import LUMI
@@ -103,10 +104,17 @@ def plot_by_process(hists, category, year_str, year_list, outdir, region, style,
         # ^ If this number is identical for both bins, your input pickle is wrong.
         # If it is different, your plots are now fixed.
 
+        if args.allvars:
+            cat_dir  = Path(f"{outdir}/{category}")
+            cat_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            cat_dir=outdir
+
         if ptinclusive:
-            legend_title = f"{category.capitalize()} Region, $p_T$-inclusive"
+            # legend_title = f"{category.capitalize()} Region, $p_T$-inclusive"
+            legend_title = f"{category.capitalize()} Region"
             output_name = (
-                f"{outdir}/{year_str}_{region}_{category}_{variable}_process_ptinclusive.png"
+                f"{cat_dir}/{year_str}_{region}_{category}_{variable}_process_ptinclusive.png"
             )
         else:
             cat_label = category_labels.get(category, category)
@@ -124,13 +132,18 @@ def plot_by_process(hists, category, year_str, year_list, outdir, region, style,
             onto = "top"
         else:
             # signals = ["hbb"]
-            signals = ['tth-hbb', 'ggf-hbb', 'vh-hbb', 'vbf-hbb']
+            signals = [#'tth-hbb', 
+                        "ggf-hbb", "vh-hbb","vbf-hbb"
+                        # "ggf-hbb", "wh-hbb","zh-hbb", "vbf-hbb"
+                        ]
+            bkg_order = ['tth', "zjets", "wjets", "diboson", "ewkv", "tops", "qcd"]
             # bkg_order = ["zjets", "wjets", "other", "top"]
-            bkg_order = ["singletop", "tt"]
+            # bkg_order = ["singletop", "tt"]
 
             onto =  None#["tt", "singletop"]
-
-        if 'data' not in hists.items():
+        # print(hists.items())
+        if 'data' not in hists.keys():
+            print(hists.keys())
             fig, ax = mc_plot(
                 histograms_to_plot,
                 sigs=signals,
@@ -141,6 +154,7 @@ def plot_by_process(hists, category, year_str, year_list, outdir, region, style,
                 legend_title=legend_title,
             )
         else:
+            print("Plotting ratio plot with data")
             fig, (ax, rax) = ratio_plot(
                 histograms_to_plot,
                 sigs=signals,
@@ -613,6 +627,139 @@ def plot_reference(hists, category, year_str, year_list, outdir, region, style, 
             fig.savefig(output_name, dpi=300, bbox_inches="tight")
             plt.close(fig)
 
+def plot_IV(hists, category, year_str, year_list, outdir, region, style, variable, ptinclusive=False):
+    """Plots a stacked log scale histogram for a given BDT input variable"""
+
+    first_hist = next((h for h in hists.values() if h.sum() > 0), None)
+    if not first_hist:
+        print(f"All histograms are empty for {category} category. Skipping plot.")
+        return
+    pt_axis = first_hist.axes["pt1"]
+
+    # --- FIX 1: Define indices to loop over ---
+    if ptinclusive:
+        # For inclusive, we slice from 0 to the end
+        loop_indices = ["inclusive"]
+        print("--- Preparing pT-inclusive plot ---")
+    else:
+        # Loop over integer indices 0, 1, etc.
+        loop_indices = range(len(pt_axis.edges) - 1)
+        print("--- Preparing plots for each pT bin ---")
+
+    for i in loop_indices:
+
+        # --- FIX 2: Determine slice based on index ---
+        if i == "inclusive":
+            pt_low, pt_high = pt_axis.edges[0], pt_axis.edges[-1]
+            # Slice everything (:) on axis 1
+            idx_selector = slice(None)
+        else:
+            pt_low, pt_high = pt_axis.edges[i], pt_axis.edges[i + 1]
+            # Select specifically the i-th bin
+            idx_selector = i
+
+        print(f"  Processing pt bin: {pt_low} - {pt_high} (Index {i})")
+
+        histograms_to_plot = {}
+        total_yield = 0  # Debug counter
+
+        for process, h in hists.items():
+            if h.sum() == 0 or category not in h.axes["category"]:
+                continue
+
+            # --- FIX 3: Use integer index 'idx_selector' for robust slicing ---
+            # h is [variable, pt, category, flavor]
+            # We slice axis 1 (pt) with idx_selector
+            h_proj = h[:, idx_selector, category, :].project(variable)
+
+            # --- Blinding Data (MSD only) ---
+            if process == "data" and region != "control-zgamma" and variable == "msd1":
+                edges = h_proj.axes[0].edges
+                mask = (edges[:-1] >= mass_lo) & (edges[:-1] < mass_hi)
+                data_val = h_proj.values()
+                data_val[mask] = 0
+                h_proj.values()[:] = data_val
+
+            histograms_to_plot[process] = h_proj
+            total_yield += h_proj.sum()
+
+        print(f"    Total Yield in this bin: {total_yield:.2f}")
+        # ^ If this number is identical for both bins, your input pickle is wrong.
+        # If it is different, your plots are now fixed.
+
+        if args.allvars:
+            cat_dir  = Path(f"{outdir}/{category}")
+            cat_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            cat_dir=outdir
+
+        if ptinclusive:
+            # legend_title = f"{category.capitalize()} Region, $p_T$-inclusive"
+            legend_title = f"{category.capitalize()} Region"
+            output_name = (
+                f"{cat_dir}/{year_str}_{region}_{category}_{variable}_process_ptinclusive.png"
+            )
+        else:
+            cat_label = category_labels.get(category, category)
+            legend_title = f"{cat_label}\n{pt_low:g} < $p_T$ < {pt_high:g} GeV"
+            output_name = f"{outdir}/{year_str}_{region}_{category}_{variable}_process_ptbin{pt_low}_{pt_high}.png"
+
+        # Region-specific plotting logic
+        if "control-zgamma" in region:
+            signals = ["zgamma"]
+            bkg_order = ["tt", "other", "wgamma"]
+            onto = "gjets"
+        elif "control-tt" in region:
+            signals = []
+            bkg_order = ["wjets", "zjets", "qcd", "other", "hbb"]
+            onto = "top"
+        else:
+            # signals = ["hbb"]
+            signals = [#'tth-hbb', 
+                        # "ggf-hbb", "vh-hbb", "vbf-hbb"
+                        "ggf-hbb", "wh-hbb","zh-hbb", "vbf-hbb"]
+            bkg_order = ['tth', "zjets", "wjets", "diboson", "ewkv", "tops", "qcd"]
+            # bkg_order = ["zjets", "wjets", "other", "top"]
+            # bkg_order = ["singletop", "tt"]
+
+            onto =  None#["tt", "singletop"]
+
+        if 'data' not in hists.items():
+            fig, ax = mc_plot(
+                histograms_to_plot,
+                sigs=signals,
+                bkgs=bkg_order,
+                onto=onto,
+                style=style,
+                sort_by_yield=True,
+                legend_title=legend_title,
+            )
+        else:
+            fig, (ax, rax) = ratio_plot(
+                histograms_to_plot,
+                sigs=signals,
+                bkgs=bkg_order,
+                onto=onto,
+                style=style,
+                sort_by_yield=True,
+                legend_title=legend_title,
+            )
+            
+        luminosity = sum(LUMI[y] / 1000.0 for y in year_list)
+        hep.cms.label(
+            "Private Work",
+            data=True,
+            ax=ax,
+            lumi=luminosity,
+            lumi_format="{:0.1f}",
+            com=13.6,
+            year=year_str,
+            loc=0,
+        )
+
+        fig.savefig(output_name, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+
 
 # --- Main Function: The Control Center ---
 def main(args):
@@ -623,42 +770,6 @@ def main(args):
     # else:
     #    year_str = "-".join(args.year)
 
-    for year in args.year:
-        # --- MODIFIED ---
-        # The pkl_path now uses `args.variable` to find the correct file
-        pkl_path = Path(args.indir) / f"histograms_{args.variable}_{year}_{args.region}.pkl"
-        if not pkl_path.exists():
-            # --- MODIFIED ---
-            # Updated error message to be more informative
-            print(
-                f"Error: File not found at {pkl_path}."
-                f" Did you run make_histos for --variable {args.variable}? Skipping."
-            )
-            continue
-        with pkl_path.open("rb") as f:
-            histograms_tmp = pickle.load(f)
-
-            # --- MODIFIED ---
-            # This printout is now specific to the variable being plotted
-            print(f"\nLoading {args.variable} histograms for year {year}...")
-
-            # Print the total yield for this year
-            qcd_yield = histograms_tmp.get("qcd", hist.Hist()).sum()
-            data_yield = histograms_tmp.get("data", hist.Hist()).sum()
-            print(f"  Year {year}:")
-            print(f"    Data Yield ({args.variable}): {data_yield:.2f}")
-            print(f"    QCD MC Yield ({args.variable}): {qcd_yield:.2f}")
-
-            for process, h in histograms_tmp.items():
-                if process in histograms:
-                    histograms[process] += h
-                else:
-                    histograms[process] = h
-
-    if not histograms:
-        print("No histograms were loaded. Exiting.")
-        return
-
     output_dir = Path(args.outdir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -667,33 +778,79 @@ def main(args):
 
     with style_path.open() as f:
         style = yaml.safe_load(f)
+    if args.allvars:
+        with open('./python/input_vars_Ztag.json', 'r') as file:
+            input_vars = json.load(file)
+        variables_to_plot = input_vars.keys()
+    else:
+        variables_to_plot=[args.variable]
+    
+    for year in args.year:
+        # --- MODIFIED ---
+        # The pkl_path now uses `args.variable` to find the correct file
+        for var in variables_to_plot:
+            pkl_path = Path(args.indir) / f"histograms_{var}_{year}_{args.region}.pkl"
+            if not pkl_path.exists():
+                # --- MODIFIED ---
+                # Updated error message to be more informative
+                print(
+                    f"Error: File not found at {pkl_path}."
+                    f" Did you run make_histos for --variable {args.variable}? Skipping."
+                )
+                continue
+            with pkl_path.open("rb") as f:
+                histograms_tmp = pickle.load(f)
+
+                # --- MODIFIED ---
+                # This printout is now specific to the variable being plotted
+                print(f"\nLoading {var} histograms for year {year}...")
+
+                # Print the total yield for this year
+                qcd_yield = histograms_tmp.get("qcd", hist.Hist()).sum()
+                data_yield = histograms_tmp.get("data", hist.Hist()).sum()
+                print(f"  Year {year}:")
+                print(f"    Data Yield ({var}): {data_yield:.2f}")
+                print(f"    QCD MC Yield ({var}): {qcd_yield:.2f}")
+
+                for process, h in histograms_tmp.items():
+                    if var not in histograms:
+                        histograms[var] = {process: h}
+                    else:
+                        histograms[var][process] = h
+                        
+    # print(histograms)
+    if not histograms:
+        print("No histograms were loaded. Exiting.")
+        return
 
     # Call the correct plotting function based on --plot-type
     # --- MODIFIED ---
     # Passed `args.variable` to every plotting function
     if args.plot_type == "process":
         for category in categories:
-            print(
-                f"Plotting {args.variable} histograms by process for category: {category}, year: {year_str}..."
-            )
-            plot_by_process(
-                histograms,
-                category,
-                year_str,
-                args.year,
-                args.outdir,
-                args.region,
-                style,
-                args.variable,  # <-- ADDED
-                ptinclusive=(args.inclusive_scope == "pt-inclusive"),
-            )
+            for var in variables_to_plot:
+                print(
+                    f"Plotting {var} histograms by process for category: {category}, year: {year_str}..."
+                )
+                # print(histograms[var])
+                plot_by_process(
+                    histograms[var],
+                    category,
+                    year_str,
+                    args.year,
+                    args.outdir,
+                    args.region,
+                    style,
+                    var,  # <-- ADDED
+                    ptinclusive=(args.inclusive_scope == "pt-inclusive"),
+                )
     elif args.plot_type == "flavor":
         for category in categories:
             print(
                 f"Plotting {args.variable} histograms by flavor for category: {category}, year: {year_str}..."
             )
             plot_by_flavor(
-                histograms,
+                histograms[args.variable],
                 category,
                 year_str,
                 args.year,
@@ -705,7 +862,7 @@ def main(args):
     elif args.plot_type == "qcd_shape":
         print(f"Plotting {args.variable} QCD pass/fail shapes for year: {year_str}...")
         plot_qcd_shapes(
-            histograms,
+            histograms[args.variable],
             year_str,
             args.outdir,
             args.region,
@@ -715,7 +872,7 @@ def main(args):
     elif args.plot_type == "inclusive":
         print(f"Plotting {args.variable} inclusive (pass+fail) histograms for year: {year_str}...")
         plot_inclusive(
-            histograms,
+            histograms[args.variable],
             year_str,
             args.year,
             args.outdir,
@@ -731,7 +888,7 @@ def main(args):
                 f"Plotting {args.variable} reference histograms for category: {category}, year: {year_str}..."
             )
             plot_reference(
-                histograms,
+                histograms[args.variable],
                 category,
                 year_str,
                 args.year,
@@ -742,6 +899,7 @@ def main(args):
             )
 
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Unified plotting script for Hbb analysis.")
     parser.add_argument(
@@ -750,7 +908,7 @@ if __name__ == "__main__":
         type=str,
         required=True,
         nargs="+",
-        choices=["2022", "2022EE", "2023", "2023BPix"],
+        choices=["2022", "2022EE", "2023", "2023BPix", "2024"],
     )
     parser.add_argument("--indir", help="Input directory for .pkl files", type=str, required=True)
     parser.add_argument("--outdir", help="Output directory for plots", type=str, required=True)
@@ -760,7 +918,7 @@ if __name__ == "__main__":
         help="Variable to plot",
         type=str,
         default="msd1",
-        choices=["msd1", "met", "photon_pt", "delta_phi", "nJet", "FatJet0_ParTPXcs"],
+        choices=["msd1", "met", "photon_pt", "delta_phi", "nJet", "FatJet0_ParTPXcs", "Jet0_mass"],
     )
     parser.add_argument(
         "--stack-by",
@@ -790,6 +948,9 @@ if __name__ == "__main__":
         type=str,
         default="pt-binned",
         choices=["pt-binned", "pt-inclusive"],
+    )
+    parser.add_argument(
+        "--allvars", help="Plot all the input variables for the BDT. Works with process plot type with pt-inclusive", action="store_true", default=False
     )
     args = parser.parse_args()
     main(args)

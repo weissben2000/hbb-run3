@@ -12,23 +12,22 @@ import uproot
 from common import common_mc, data_by_year, higgs_mc#data_by_year_muon, data_by_year_zgamma
 
 from hbb import utils
+import json
 
 # Define the possible ptbins
 # ptbins = np.array([250, 500, 1200])
 ptbins = np.array([450, 1200])
 # Define the histogram axes
 axis_to_histaxis = {
-    "pt1": hist.axis.Variable(ptbins, name="pt1", label=r"Jet 0 $p_{T}$ [GeV]"),
-    "pt2": hist.axis.Variable(ptbins, name="pt2", label=r"Jet 1 $p_{T}$ [GeV]"),
-    "msd1": hist.axis.Regular(23, 20, 201, name="msd1", label="Jet 0 $m_{sd}$ [GeV]"),
+    "pt1": hist.axis.Variable(ptbins, name="pt1", label=r"FatJet 0 $p_{T}$ [GeV]"),
+    "pt2": hist.axis.Variable(ptbins, name="pt2", label=r"FatJet 1 $p_{T}$ [GeV]"),
+    "msd1": hist.axis.Regular(23, 40, 201, name="msd1", label="FatJet 0 $m_{sd}$ [GeV]"),
     "mass1": hist.axis.Regular(30, 0, 200, name="mass1", label="Jet 0 PNet mass [GeV]"),
     "category": hist.axis.StrCategory([], name="category", label="Category", growth=True),
     "genflavor": hist.axis.IntCategory([0, 1, 2, 3], name="genflavor", label="Gen Flavor"),
     "met": hist.axis.Regular(50, 0, 300, name="met", label="MET [GeV]"),
     "photon_pt": hist.axis.Regular(50, 0, 1200, name="photon_pt", label=r"Photon $p_{T}$ [GeV]"),
-    "delta_phi": hist.axis.Regular(
-        32, 0, 3.2, name="delta_phi", label=r"$\Delta\phi(\gamma, \text{jet})$"
-    ),
+    "delta_phi": hist.axis.Regular(32, 0, 3.2, name="delta_phi", label=r"$\Delta\phi(\gamma, \text{jet})$"),
     "nJet": hist.axis.Regular(15, 0.5, 15.5, name="nJet", label="Number of AK4 jets"),
     "FatJet0_ParTPXcs": hist.axis.Regular(10, 0, 1, name="FatJet0_ParTPXcs", label="FatJet0_ParTPXcs score"),
 
@@ -45,8 +44,6 @@ axis_to_column = {
     "met": "MET",
     "photon_pt": "Photon0_pt",
     "delta_phi": "delta_phi_photon_jet",  # This will be calculated on the fly
-    "nJet": "nJet",
-    "FatJet0_ParTPXcs": "FatJet0_ParTPXcs"
 }
 
 
@@ -90,13 +87,41 @@ def fill_ptbinned_histogram(h, events, axis, region):
             print("WARNING: MET column missing or unreadable. Setting MET=0 for selection.")
             met_pt = np.zeros(len(data))
 
+        if axis == "FatJet0_ParTPZvsQCD":
+            required_vars = ["FatJet0_ParTPQCD", "FatJet0_ParTPXbb", "FatJet0_ParTPXcc", "FatJet0_ParTPXqq"]
+            assert set(required_vars).issubset(data.columns), f"{required_vars} must be in input_vars.json!"
+            FJ0_QCD = data["FatJet0_ParTPQCD"]
+            FJ0_Xbb = data["FatJet0_ParTPXbb"]
+            FJ0_Xcc = data["FatJet0_ParTPXcc"]
+            FJ0_Xqq = data["FatJet0_ParTPXqq"]
+            FJ0ZvsQCD = (FJ0_Xbb + FJ0_Xcc + FJ0_Xqq) / (FJ0_Xbb + FJ0_Xcc + FJ0_Xqq + FJ0_QCD)
+
+
+        if axis == "FatJet1_ParTPZvsQCD":
+            required_vars = ["FatJet1_ParTPQCD", "FatJet1_ParTPXbb", "FatJet1_ParTPXcc", "FatJet1_ParTPXqq"]
+            assert set(required_vars).issubset(data.columns), f"{required_vars} must be in input_vars.json!"
+            FJ1_QCD = data["FatJet1_ParTPQCD"]
+            FJ1_Xbb = data["FatJet1_ParTPXbb"]
+            FJ1_Xcc = data["FatJet1_ParTPXcc"]
+            FJ1_Xqq = data["FatJet1_ParTPXqq"]
+            FJ1ZvsQCD = (FJ1_Xbb + FJ1_Xcc + FJ1_Xqq) / (FJ1_Xbb + FJ1_Xcc + FJ1_Xqq + FJ1_QCD)
+
         # --- 2. EXTRACT PLOTTING VARIABLE ---
-        if axis_to_column[axis] == "delta_phi_photon_jet":
-            var_series = dphi
-        elif axis == "met":
-            var_series = met_pt
+        if args.allvars:
+            if axis == "FatJet0_ParTPZvsQCD":
+                var_series = FJ0ZvsQCD
+            elif axis == "FatJet1_ParTPZvsQCD":
+                var_series = FJ1ZvsQCD
+            else:
+                var_series = data[axis]
+            
         else:
-            var_series = data[axis_to_column[axis]]
+            if axis_to_column[axis] == "delta_phi_photon_jet":
+                var_series = dphi
+            elif axis == "met":
+                var_series = met_pt
+            else:
+                var_series = data[axis_to_column[axis]]
 
         weight_val = data["finalWeight"].astype(float)
 
@@ -121,8 +146,8 @@ def fill_ptbinned_histogram(h, events, axis, region):
         Txbbxcc = data["FatJet0_ParTPXbbXcc"]  # for lara's category
         msd = data["FatJet0_msd"]
         pt = data["FatJet0_pt"]
-        njet = data["nJet"]
-        Txcs = data["FatJet0_ParTPXcs"]
+        # njet = data["nJet"]
+        # Txcs = data["FatJet0_ParTPXcs"]
         photon_pt = data["Photon0_pt"] if "Photon0_pt" in data.columns else None
 
         # --- 3. DELETE DATAFRAME ---
@@ -134,9 +159,9 @@ def fill_ptbinned_histogram(h, events, axis, region):
         # Standard kinematic cuts
         basic_cuts = (
             # (photon_pt > 120) & (msd > 20) & (msd < 200) & (pt > 250) & (pt < 1200) & (trigger_mask)
-            (msd > 20) & (msd < 200) & (pt > 250) & (pt < 1200) & (trigger_mask)
+            (msd > 20) & (msd < 200) & (pt > 450) & (pt < 1200) & (trigger_mask)
         )
-        nJet_cuts = (njet < 7)
+        # nJet_cuts = (njet < 7)
 
         # NEW CUTS: MET and DeltaPhi
         # Note: We use 'dphi' and 'met_pt' calculated earlier
@@ -155,6 +180,7 @@ def fill_ptbinned_histogram(h, events, axis, region):
             "fail": pre_selection & (Txbbxcc <= working_point),
             "pass": pre_selection & (Txbbxcc > working_point),  # (Union of pass_bb and pass_cc)
         }
+
 
         # Fill histograms
         for category, selection in selection_dict.items():
@@ -253,12 +279,13 @@ def main(args):
     MAIN_DIR = "/eos/uscms/store/group/lpchbbrun3/"
     # dir_name = "gmachado/25Oct27_v12"
     # dir_name = "gmachado/25Nov19_stable_v14_private"
-    dir_name = "skims/26Jan16/"
+    # dir_name = "skims/26Feb03/"
+    # dir_name = "lzygala/26Jun12_v14_private/"
+    dir_name = "skims/26Jun12/"
 
     path_to_dir = f"{MAIN_DIR}/{dir_name}/"
 
     filters = None
-    variable_to_plot = args.variable
 
     # 1. Define base columns ALWAYS needed for selections
     base_columns = [
@@ -272,8 +299,6 @@ def main(args):
         "FatJet0_ParTPXbbVsQCD",
         "FatJet0_ParTPXccVsQCD",
         "FatJet0_ParTPXbbXcc",  # for lara's cat
-        "nJet",
-        "FatJet0_ParTPXcs",
     ]
 
     # 2. Add columns needed for the region
@@ -291,16 +316,27 @@ def main(args):
         )
 
     # 3. Add columns needed for the specific variable
-    var_cols = axis_to_column[variable_to_plot]
-    if isinstance(var_cols, str):
-        if var_cols == "delta_phi_photon_jet":
-            # Ensure we don't add duplicates if they are already in base
-            if "Photon0_phi" not in base_columns:
-                base_columns.extend(["Photon0_phi", "FatJet0_phi"])
-        else:
-            base_columns.append(var_cols)
-    elif isinstance(var_cols, list):
+    if args.allvars:
+        with open('./python/input_vars_Ztag.json', 'r') as file:
+            input_vars = json.load(file)
+        var_cols = input_vars.keys()
         base_columns.extend(var_cols)
+        hists_to_make = var_cols
+        variable_to_plot = "allVars"
+        # print("variables to plot": hists_to_make)
+    else:
+        variable_to_plot = args.variable
+        hists_to_make = [variable_to_plot]
+        var_cols = axis_to_column[variable_to_plot]
+        if isinstance(var_cols, str):
+            if var_cols == "delta_phi_photon_jet":
+                # Ensure we don't add duplicates if they are already in base
+                if "Photon0_phi" not in base_columns:
+                    base_columns.extend(["Photon0_phi", "FatJet0_phi"])
+            else:
+                base_columns.append(var_cols)
+        elif isinstance(var_cols, list):
+            base_columns.extend(var_cols)
 
     # 4. Create the final lists
     load_columns_mc = list(set(base_columns + ["GenFlavor"]))
@@ -315,16 +351,13 @@ def main(args):
     else:
         data_samples = data_by_year.get(year, {})
 
-    # samples = {
-    #     **common_mc,
-    #     "data": data_samples,
-    # }
     samples = {
-        'tt': common_mc["tt"], 'singletop': common_mc["singletop"], **higgs_mc,  
+        **common_mc,
     }
-
-    variable_to_plot = args.variable
-    hists_to_make = [variable_to_plot]
+    if args.allvars==False:
+        print("------INCLDUING DATA-------")
+        samples["data"] = data_samples  
+        print()
 
     print(f"Will create histogram files for: {', '.join(hists_to_make)}")
 
@@ -336,12 +369,25 @@ def main(args):
             load_columns = load_columns_data if process == "data" else load_columns_mc
             print(f"Processing {process} for year {year}...")
 
-            h = hist.Hist(
-                axis_to_histaxis[hist_name],
-                axis_to_histaxis["pt1"],
-                axis_to_histaxis["category"],
-                axis_to_histaxis["genflavor"],
-            )
+            if args.allvars:
+                unit = input_vars[hist_name]["unit"]
+                if "FatJet0_ParTPZvsQCD" in load_columns:
+                    load_columns.remove("FatJet0_ParTPZvsQCD")
+                if "FatJet1_ParTPZvsQCD" in load_columns:
+                    load_columns.remove("FatJet1_ParTPZvsQCD")
+                h = hist.Hist(
+                    hist.axis.Regular(*input_vars[hist_name]["bins"], name=hist_name, label=f"{hist_name} {unit}"),
+                    axis_to_histaxis["pt1"],
+                    axis_to_histaxis["category"],
+                    axis_to_histaxis["genflavor"],
+                )
+            else:
+                h = hist.Hist(
+                    axis_to_histaxis[hist_name],
+                    axis_to_histaxis["pt1"],
+                    axis_to_histaxis["category"],
+                    axis_to_histaxis["genflavor"],
+                )
 
             for dataset in datasets:
                 events = utils.load_samples(
@@ -376,7 +422,7 @@ def main(args):
         #    pickle.dump(histograms, f)
 
         # 1. Save Pickle (For Plotting Pipeline)
-        pkl_file = output_dir / f"histograms_{variable_to_plot}_{year}_{region}.pkl"
+        pkl_file = output_dir / f"histograms_{hist_name}_{year}_{region}.pkl"
         with pkl_file.open("wb") as f:
             pickle.dump(histograms, f)
         print(f"Pickle saved to {pkl_file}")
@@ -394,7 +440,7 @@ if __name__ == "__main__":
         help="year",
         type=str,
         required=True,
-        choices=["2022", "2022EE", "2023", "2023BPix"],
+        choices=["2022", "2022EE", "2023", "2023BPix", "2024"],
     )
     parser.add_argument(
         "--region",
@@ -425,6 +471,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--save-root", action="store_true", help="Save 1D histograms to ROOT for Combine"
+    )
+    parser.add_argument(
+        "--allvars", help="Plot all the input variables for the BDT. Must set region to signal-all!", action="store_true", default=False
     )
     args = parser.parse_args()
 

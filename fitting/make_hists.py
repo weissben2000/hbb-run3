@@ -28,6 +28,7 @@ REGION_MAP = {
     "vh": "signal-vh",
     "vbf": "signal-vbf",
     "ggf": "signal-ggf",
+    "tth": "signal-tth"
 }
 
 
@@ -157,7 +158,10 @@ def main(args):
         pmap = json.load(f)
         
     do_BDT_regions = setup.get("do_BDT_regions", False)
-
+    do_ttH = setup.get("do_ttH", False)
+    # if do_ttH:
+    #     REGION_MAP['tth'] = "signal-tth"
+    
     for region_key, reg_cfg in setup["categories"].items():
         print("\n" + "=" * 50)
         print(f"STARTING REGION: {region_key}")
@@ -230,6 +234,7 @@ def main(args):
                 "MET",
                 "Photon200",
                 "Photon110EB_TightID_TightIso",
+                "njet"
             ]
 
         # Ensure the dynamic bin branch is loaded
@@ -256,7 +261,7 @@ def main(args):
                 for dataset in datasets:
                     events = utils.load_samples(
                         data_dir=Path(
-                            f"/eos/uscms/store/group/lpchbbrun3/skims/{args.tag}/{args.year}"
+                            f"/eos/uscms/store/group/lpchbbrun3/bweiss/{args.tag}/{args.year}"
                         ),
                         samples={process: [dataset]},
                         columns=cols,

@@ -6,7 +6,8 @@
     "do_BDT_regions": true,
     "rho_scaling_max": -2.1,
     "do_systematics": false,
-    "do_muon_CR": true,
+    "do_muon_CR": false,
+    "do_tth": false,
     "active_systematics": [
         "pileup", "JES", "JER", "UES",
         "btagSFb", "btagSFc", "btagSFlight",
@@ -41,7 +42,8 @@
         "VBF": { "components": [["VBF", ""]], "is_signal": true },
         "WH":  { "components": [["WH", ""]], "is_signal": true },
         "ZH":  { "components": [["ZH", ""]], "is_signal": true },
-        "ttH": { "components": [["ttH", ""]], "is_signal": false },
+        "ttH": { "components": [["ttH", ""]], "is_signal": true },
+
         "ttbar": { "components": [["ttbar", ""]], "is_signal": false },
         "singlet": { "components": [["singlet", ""]], "is_signal": false },
         "VV":    { "components": [["VV", ""]], "is_signal": false },
@@ -63,7 +65,8 @@
             "map=.*/ggF:rggF[1,-20,20]",
             "map=.*/VBF:rVBF[1,-20,20]",
             "map=.*/WH:rVH[1,-20,20]",
-            "map=.*/ZH:rVH[1,-20,20]"
+            "map=.*/ZH:rVH[1,-20,20]",
+            "map=.*/ttH:rttH[1,-20,20]"
         ]
     }
 }

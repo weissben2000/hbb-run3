@@ -69,7 +69,7 @@ def format_legend(ax, ncols=2, handles_labels=None, title=None, **kwargs):
         loc="upper right",
         **kw,
     )
-    if nentries % 2 == 0:
+    if nentries % ncols == 0:
         return leg1
 
     ax.add_artist(leg1)
@@ -302,16 +302,17 @@ def mc_plot(
 
     fig, ax = plt.subplots(1, 1)
     # plt.subplots_adjust(hspace=0)
-    plt.rcParams.update({"font.size": 24})
+    plt.rcParams.update({"font.size": 25})
 
     if onto is None:
         hep.histplot(
-            [hist_dict[k] for k in bkgs + sigs],
+            [hist_dict[k] for k in bkgs + sigs if k in hist_dict],
             ax=ax,
             label=bkgs + sigs,
-            stack=True,
-            histtype="fill",
-            facecolor=[style[k]["color"] for k in bkgs + sigs],
+            stack=False,
+            histtype="step",
+            edgecolor=[style[k]["color"] for k in bkgs + sigs if k in hist_dict],
+            linewidth=5 #[4 if k in sigs else 2 for k in bkgs + sigs],
         )
     else:
         if onto in hist_dict:
@@ -347,12 +348,13 @@ def mc_plot(
             linewidth=_linewidth,
         )
 
+    ax.set_yscale('log')
     # Set the grid
     ax.xaxis.grid(True, which="major")
     ax.yaxis.grid(True, which="major")
 
     # Set the legend
-    ax.legend(ncol=2)
+    ax.legend(ncol=3)
     # Reformat the legend
     existing_keys = ax.get_legend_handles_labels()[-1]
     for key in existing_keys:
@@ -362,13 +364,13 @@ def mc_plot(
     handles, labels = ax.get_legend_handles_labels()
     handles = [handles[i] for i in order]
     labels = [style[labels[i]]["label"] for i in order]
-    _legend_fontsize = "small" if len(labels) <= 8 else "x-small"
+    _legend_fontsize = "medium" if len(labels) <= 10 else "x-small"
     _ = format_legend(
         ax,
-        ncols=2,
+        ncols=3,
         handles_labels=(handles, labels),
         bbox_to_anchor=(1, 1),
-        markerscale=0.8,
+        markerscale=5,
         fontsize=_legend_fontsize,
         labelspacing=0.4,
         columnspacing=1.5,
@@ -379,7 +381,7 @@ def mc_plot(
     
 
     # Axis labels
-    ax.set_ylabel("Events / GeV")
-    ax.set_xlabel(hist_dict[sigs[0]].axes[0].label)
+    ax.set_ylabel("Events")
+    ax.set_xlabel(hist_dict[sigs[0]].axes[0].label, fontsize = 36, fontweight='bold')
 
     return fig, ax

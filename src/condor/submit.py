@@ -109,7 +109,8 @@ def main(args):
                     "jobnum": j,
                     "nano_version": args.nano_version,
                     "run_mode": args.run_mode,
-                    "BDT": args.BDT
+                    "BDT": args.BDT,
+                    "tth": args.tth,
                 }
                 write_template(sh_templ, localsh, sh_args)
                 os.system(f"chmod u+x {localsh}")
@@ -125,6 +126,8 @@ def main(args):
 
     print(f"Total {nsubmit} jobs")
     print(f"Evaluate BDT: {args.BDT}")
+    print(f"tth category: {args.tth}")
+
 
 
 def parse_args(parser):
@@ -170,6 +173,12 @@ def parse_args(parser):
         "--BDT",
         action="store_true",
         help="Evaluate BDT scores and use for categorization",
+        default=False,
+    )
+    parser.add_argument(
+        "--tth",
+        action="store_true",
+        help="Adds a tth signal region. Must enable --BDT aswell!",
         default=False,
     )
 
