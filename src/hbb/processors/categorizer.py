@@ -163,6 +163,7 @@ class categorizer(SkimmerABC):
         skim_outpath="",
         evaluate_BDT=True,
         btag_eff=False,
+        ak4_tag_cal = False,
         save_skim_nosysts=False,
     ):
         super().__init__()
@@ -179,6 +180,7 @@ class categorizer(SkimmerABC):
         self._skim_outpath = skim_outpath
         self._evaluate_BDT = evaluate_BDT
         self._btag_eff = btag_eff
+        self._ak4_tag_cal = ak4_tag_cal
         self._btagger, self._btag_wp = "btagPNetB", "M"
         if year == "2024":
             self._btagger = "btagUParTAK4B"
@@ -218,6 +220,14 @@ class categorizer(SkimmerABC):
         self.make_btag_output = lambda: (
             Hist.new.StrCat([], growth=True, name="tagger", label="Tagger")
             .Reg(2, 0, 2, name="passWP", label="passWP")
+            .Variable([0, 4, 5], name="flavor", label="Jet hadronFlavour")
+            .Variable([20, 30, 50, 70, 100, 140, 200, 300, 600, 1000], name="pt", label="Jet pt")
+            .Reg(4, 0, 2.5, name="abseta", label="Jet abseta")
+            .Weight()
+        )
+        self.make_ak4tag_WPbin_output = lambda: (
+            Hist.new.StrCat([], growth=True, name="tagger", label="Tagger")
+            .Reg(6, 0, 6, name="WPbin", label="WPbin")
             .Variable([0, 4, 5], name="flavor", label="Jet hadronFlavour")
             .Variable([20, 30, 50, 70, 100, 140, 200, 300, 600, 1000], name="pt", label="Jet pt")
             .Reg(4, 0, 2.5, name="abseta", label="Jet abseta")
@@ -362,7 +372,13 @@ class categorizer(SkimmerABC):
         dataset = events.metadata["dataset"]
         isRealData = not hasattr(events, "genWeight")
         selection = PackedSelection()
-        output = self.make_output() if not self._btag_eff else self.make_btag_output()
+        if self._btag_eff:
+            output = self.make_btag_output()
+        elif self._ak4_tag_cal:
+            output = self.make_ak4tag_WPbin_output()
+        else:
+            output = self.make_output()  
+            
         weights = Weights(None, storeIndividual=True)
         if shift_name == "nominal" and not isRealData and not self._btag_eff:
             output["sumw"][dataset] = ak.sum(events.genWeight)
@@ -838,6 +854,30 @@ class categorizer(SkimmerABC):
                 pt=self.normalize(flat_gj.pt, cut),
                 flavor=self.normalize(flat_gj.hadronFlavour, cut),
                 passWP=self.normalize(getattr(flat_gj, self._btagger) > self._btag_cut, cut),
+            )
+            return output
+
+        if self._ak4_tag_cal:
+            btag_WPs = b_taggers[self._year]["AK4"][self._btagger]
+            cut = selection.all(*btag_eff_cuts)
+            flat_gj = ak.flatten(goodjets)
+            
+            WP_cuts = {}
+            for i, WP_name in enumerate(btag_WPs.keys()):
+                WP = btag_WPs[WP_name]
+                if WP_name != 'XXT':
+                    next_WP = btag_WPs[btag_WPs.keys()[i+1]] 
+                else:
+                    next_WP = 1
+                tagger_score = getattr(flat_gj, self._btagger)
+                WP_cuts[WP_name] = (tagger_score>WP) & (tagger_score<next_WP)
+
+            output.fill(
+                tagger=self._btagger,
+                abseta=self.normalize(abs(flat_gj.eta), cut),
+                pt=self.normalize(flat_gj.pt, cut),
+                flavor=self.normalize(flat_gj.hadronFlavour, cut),
+                WPbin = self.normalize(, cut)
             )
             return output
 
