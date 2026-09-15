@@ -33,7 +33,7 @@ class Iterator(xgboost.DataIter):
         # When the `ExtMemQuantileDMatrix` is used, the device must match. GPU cannot
         # consume CPU input data and vice-versa.
         if self.device == "cpu":
-            X = pd.read_parquet(X_path).sample(frac=1, ignore_index=True, random_state=42)
+            df = pd.read_parquet(X_path).sample(frac=1, ignore_index=True, random_state=42)
             # X = pd.read_parquet(X_path)
             # if self.metadata is not None:
             #     X['BDTWeight']=1
@@ -44,17 +44,52 @@ class Iterator(xgboost.DataIter):
             #     w = abs(X['finalWeight'])
             
             # w = abs(X['finalWeight'])
-            w = abs(X['BDT_cat_weight'])
+            w = abs(df['BDT_cat_weight'])*1e3
+            y = df['y']
             # w = X['BDT_cat_weight']*1e-3 #CHANGED!!!
-            X = X.drop(['category','y', 'weight', 'finalWeight', 'sum_genWeight', 'weight_nonorm', 'BDT_weight', 'BDT_cat_weight', 'BDT_era_weight', 'FatJet0_pt', 'FatJet0_msd'#'MC_name'
+            
+            #ORIGINAL Version:
+            X = df.drop(['category','y', 'weight', 'finalWeight', 'sum_genWeight', 
+                         'weight_nonorm', 'BDT_weight', 'BDT_cat_weight', 'BDT_era_weight', 
+                         'FatJet0_pt', 'FatJet0_msd', 'BDT_Ncat_weight'#'MC_name'
                        ], axis=1)
+
+            #FOR DEBUGGING WITH EAF Version:
+           #  omit_cols = ['isSignal', 'weight','weight_final', 'BDT_score',
+           #   'category', 'FatJet0_pt', 'FatJet0_msd', 'FatJet0_msdmatched',
+           #   'MC_name', 'y', 'sumW', 'genWeight',
+           #   'Photon110EB_TightID_TightIso', 'Photon30EB_TightID_TightIso',
+           #   'FatJet0_pnetMass', 'FatJet0_pnetTXbb', 'FatJet0_pnetTXgg',
+           #   'FatJet0_pnetTXcc', 'FatJet0_pnetTXqq', 'FatJet0_pnetXbbXcc', 'FatJet0_pnetTQCD',
+           #   'FatJet0_ParTPQCD', 'FatJet0_ParTPXbb', 'FatJet0_ParTPXcc',
+           #    'FatJet0_ParTPXqq', 'FatJet0_ParTPXcs', 'FatJet0_ParTPXbbVsQCD',
+           #   'FatJet0_ParTPTopbWq', 'FatJet0_ParTPTopbWqq',
+           #   'Photon200', 'FatJet0_ParTPXccVsQCD', 'FatJet0_ParTPXbbXcc', 'FatJet0_ParTmassX2p',
+           #   'FatJet1_pnetMass', 'FatJet1_pnetTXbb', 'FatJet1_pnetTXcc',
+           #   'FatJet1_pnetTXqq', 'FatJet1_pnetTXgg',
+           #   'Photon0_eta', 'Photon0_phi', 'Photon0_pt',
+           #   'AK8PFJet250_SoftDropMass40_PFAK8ParticleNetBB0p35',
+           # 'QuadPFJet70_50_40_35_PFBTagParticleNet_2BTagSum0p65',
+           # 'AK8PFJet425_SoftDropMass40', 'PFJet500', 'PFHT1050', 'BDT_cat_weight']
+           #  X = df.drop(omit_cols, axis=1)
             
             # X['year'] = X['year'].astype(np.int64)
             # for col in X.columns:
             #     print(col, type(X[col].iloc[0]))
-            y = pd.read_parquet(X_path, columns = ['y']).sample(frac=1, ignore_index=True, random_state=42)
+            # y = pd.read_parquet(X_path, columns = ['y']).sample(frac=1, ignore_index=True, random_state=42)
             # print("nans in y: ", y.isna().sum())
             # y = np.load(y_path)
+            # print(
+            #     "batch:",
+            #     self._it,
+            #     # "N =", len(df),
+            #     "sum weights =", w.sum(),
+            #     # "mean weight =", w.mean(),
+            #     "min =", w.min(),
+            #     "max =", w.max(),
+            #     # "class weighted sums =",
+            #     # df.groupby("y")["BDT_cat_weight"].sum().to_dict()
+            #  )
         else:
             import cupy as cp
 
