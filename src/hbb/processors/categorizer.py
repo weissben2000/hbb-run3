@@ -162,6 +162,7 @@ class categorizer(SkimmerABC):
         save_skim=False,
         skim_outpath="",
         evaluate_BDT=True,
+        ttbar_category=True
         btag_eff=False,
         save_skim_nosysts=False,
     ):
@@ -178,13 +179,16 @@ class categorizer(SkimmerABC):
             self._save_skim = True
         self._skim_outpath = skim_outpath
         self._evaluate_BDT = evaluate_BDT
+        self._ttbar_category = ttbar_category
         self._btag_eff = btag_eff
         self._btagger, self._btag_wp = "btagPNetB", "M"
         if year == "2024":
             self._btagger = "btagUParTAK4B"
         self._btag_cut = b_taggers[self._year]["AK4"][self._btagger][self._btag_wp]
         self._mupt_type = "ptcorr"
-        if self._evaluate_BDT:
+        if self._evaluate_BDT and self._ttbar_category:
+            self.bdt_model = get_BDT_model("src/hbb/data/4CAT_MULTIBDTFILE")
+        elif self._evaluate_BDT and not self._ttbar_category:
             self.bdt_model = get_BDT_model("src/hbb/data/MultiBDT_3cat_26Jun12.json")
 
         with Path("src/hbb/muon_triggers.json").open() as f:
