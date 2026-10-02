@@ -39,7 +39,7 @@ common_mc = {
     },
     "vbf-hbb": {"VBFHto2B_M-125_dipoleRecoilOn", "VBFHto2C_M-125"},
     "qcd": {
-        "QCD_HT-100to200",
+        # "QCD_HT-100to200",
         "QCD_HT-200to400",
         "QCD_HT-400to600",
         "QCD_HT-600to800",

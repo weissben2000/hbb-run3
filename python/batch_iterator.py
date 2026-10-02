@@ -51,7 +51,12 @@ class Iterator(xgboost.DataIter):
             #ORIGINAL Version:
             X = df.drop(['category','y', 'weight', 'finalWeight', 'sum_genWeight', 
                          'weight_nonorm', 'BDT_weight', 'BDT_cat_weight', 'BDT_era_weight', 
-                         'FatJet0_pt', 'FatJet0_msd', 'BDT_Ncat_weight'#'MC_name'
+                         'FatJet0_pt', 'FatJet0_msd', #'BDT_Ncat_weight',#'MC_name'
+                         # 'Jet0_btagPNetB', 'Jet0_btagPNetCvB', 'Jet0_btagPNetCvL', 
+                         # 'Jet1_btagPNetB', 'Jet1_btagPNetCvB', 'Jet1_btagPNetCvL', 
+                         # 'Jet2_btagPNetB', 'Jet2_btagPNetCvB', 'Jet2_btagPNetCvL', 
+                         # 'Jet3_btagPNetB', 'Jet4_btagPNetCvB', 'Jet4_btagPNetCvL', 
+                         # 'FatJet1_ParTPXbbVsQCD', 'FatJet1_ParTPXccVsQCD', 'FatJet1_ParTPXbbXcc',
                        ], axis=1)
 
             #FOR DEBUGGING WITH EAF Version:
