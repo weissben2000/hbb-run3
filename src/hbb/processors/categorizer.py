@@ -74,65 +74,69 @@ gen_selection_dict = {
 
 
 def get_BDT_model(BDT_file: str):
-    bdt_features = [
-        "nFatJet",
-        "nJet",
-        "FatJet0_phi",
-        "FatJet0_eta",
-        "FatJet0_n2b1",
-        "FatJet0_n3b1",
-        "FatJet1_pt",
-        "FatJet1_phi",
-        "FatJet1_eta",
-        "FatJet1_msd",
-        "VBFPair_mjj",
-        "VBFPair_deta",
-        "FatJet1_ParTPQCD",
-        "FatJet1_ParTPXbb",
-        "FatJet1_ParTPXcc",
-        "FatJet1_ParTPXqq",
-        "FatJet1_ParTPXcs",
-        "FatJet1_ParTPXbbVsQCD",
-        "FatJet1_ParTPXccVsQCD",
-        "FatJet1_ParTPXbbXcc",
-        "FatJet1_ParTmassX2p",
-        "Jet0_pt",
-        "Jet0_eta",
-        "Jet0_phi",
-        "Jet0_mass",
-        "Jet0_btagPNetB",
-        "Jet0_btagPNetCvB",
-        "Jet0_btagPNetCvL",
-        "Jet0_btagPNetQvG",
-        "Jet1_pt",
-        "Jet1_eta",
-        "Jet1_phi",
-        "Jet1_mass",
-        "Jet1_btagPNetB",
-        "Jet1_btagPNetCvB",
-        "Jet1_btagPNetCvL",
-        "Jet1_btagPNetQvG",
-        "Jet2_pt",
-        "Jet2_eta",
-        "Jet2_phi",
-        "Jet2_mass",
-        "Jet2_btagPNetB",
-        "Jet2_btagPNetCvB",
-        "Jet2_btagPNetCvL",
-        "Jet2_btagPNetQvG",
-        "Jet3_pt",
-        "Jet3_eta",
-        "Jet3_phi",
-        "Jet3_mass",
-        "Jet3_btagPNetB",
-        "Jet4_btagPNetCvB",
-        "Jet4_btagPNetCvL",
-        "Jet4_btagPNetQvG",
-        "JetClosestFatJet0_pt",
-        "JetClosestFatJet0_eta",
-        "JetClosestFatJet0_phi",
-        "JetClosestFatJet0_mass",
-    ]
+    # bdt_features = [
+    #     "nFatJet",
+    #     "nJet",
+    #     "FatJet0_phi",
+    #     "FatJet0_eta",
+    #     "FatJet0_n2b1",
+    #     "FatJet0_n3b1",
+    #     "FatJet1_pt",
+    #     "FatJet1_phi",
+    #     "FatJet1_eta",
+    #     "FatJet1_msd",
+    #     "VBFPair_mjj",
+    #     "VBFPair_deta",
+    #     "FatJet1_ParTPQCD",
+    #     "FatJet1_ParTPXbb",
+    #     "FatJet1_ParTPXcc",
+    #     "FatJet1_ParTPXqq",
+    #     "FatJet1_ParTPXcs",
+    #     "FatJet1_ParTPXbbVsQCD",
+    #     "FatJet1_ParTPXccVsQCD",
+    #     "FatJet1_ParTPXbbXcc",
+    #     "FatJet1_ParTmassX2p",
+    #     "Jet0_pt",
+    #     "Jet0_eta",
+    #     "Jet0_phi",
+    #     "Jet0_mass",
+    #     "Jet0_btagPNetB",
+    #     "Jet0_btagPNetCvB",
+    #     "Jet0_btagPNetCvL",
+    #     "Jet0_btagPNetQvG",
+    #     "Jet1_pt",
+    #     "Jet1_eta",
+    #     "Jet1_phi",
+    #     "Jet1_mass",
+    #     "Jet1_btagPNetB",
+    #     "Jet1_btagPNetCvB",
+    #     "Jet1_btagPNetCvL",
+    #     "Jet1_btagPNetQvG",
+    #     "Jet2_pt",
+    #     "Jet2_eta",
+    #     "Jet2_phi",
+    #     "Jet2_mass",
+    #     "Jet2_btagPNetB",
+    #     "Jet2_btagPNetCvB",
+    #     "Jet2_btagPNetCvL",
+    #     "Jet2_btagPNetQvG",
+    #     "Jet3_pt",
+    #     "Jet3_eta",
+    #     "Jet3_phi",
+    #     "Jet3_mass",
+    #     "Jet3_btagPNetB",
+    #     "Jet4_btagPNetCvB",
+    #     "Jet4_btagPNetCvL",
+    #     "Jet4_btagPNetQvG",
+    #     "JetClosestFatJet0_pt",
+    #     "JetClosestFatJet0_eta",
+    #     "JetClosestFatJet0_phi",
+    #     "JetClosestFatJet0_mass",
+    # ]
+    booster = xgb.Booster()
+    booster.load_model(Path.cwd() / BDT_file)
+    bdt_features = booster.feature_names
+    booster.feature_names = None  # Disable feature name checking
 
     class xgboost_model(xgboost_wrapper):
         # Define how to prepare awkward arrays for BDT evaluation
@@ -145,10 +149,8 @@ def get_BDT_model(BDT_file: str):
             ret = ak.concatenate(features, axis=1)
             return [], dict(data=ret)
 
-    booster = xgb.Booster()
-    booster.load_model(Path.cwd() / BDT_file)
-    booster.feature_names = None  # Disable feature name checking
     model = xgboost_model(booster)
+
     return model
 
 
@@ -187,7 +189,7 @@ class categorizer(SkimmerABC):
         self._btag_cut = b_taggers[self._year]["AK4"][self._btagger][self._btag_wp]
         self._mupt_type = "ptcorr"
         if self._evaluate_BDT and self._ttbar_category:
-            self.bdt_model = get_BDT_model("src/hbb/data/4CAT_MULTIBDTFILE")
+            self.bdt_model = get_BDT_model("src/hbb/data/BatchedBDT_4Cat_26Sep21_LessVars.json")
         elif self._evaluate_BDT and not self._ttbar_category:
             self.bdt_model = get_BDT_model("src/hbb/data/MultiBDT_3cat_26Jun12.json")
 
@@ -599,6 +601,15 @@ class categorizer(SkimmerABC):
         selection.add("passphotonveto", (nphotons == 0))
 
         if self._evaluate_BDT:
+            #BDT requires a mapping of year to float
+            year2era = { 
+                '2022':2022, 
+                '2022EE':2022.5, 
+                '2023':2023, 
+                '2023BPix':2023.5,
+                '2024':2024
+            }
+
             # Construct BDT input
             bdt_ak_array = {
                 "nFatJet": ak.num(goodfatjets, axis=1),
@@ -618,46 +629,53 @@ class categorizer(SkimmerABC):
                 "FatJet1_ParTPXcc": subleadingjet.ParTPXcc,
                 "FatJet1_ParTPXqq": subleadingjet.ParTPXqq,
                 "FatJet1_ParTPXcs": subleadingjet.ParTPXcs,
-                "FatJet1_ParTPXbbVsQCD": subleadingjet.ParTPXbbVsQCD,
-                "FatJet1_ParTPXccVsQCD": subleadingjet.ParTPXccVsQCD,
-                "FatJet1_ParTPXbbXcc": subleadingjet.ParTPXbbXcc,
+                # "FatJet1_ParTPXbbVsQCD": subleadingjet.ParTPXbbVsQCD,
+                # "FatJet1_ParTPXccVsQCD": subleadingjet.ParTPXccVsQCD,
+                # "FatJet1_ParTPXbbXcc": subleadingjet.ParTPXbbXcc,
                 "FatJet1_ParTmassX2p": subleadingjet.ParTmassX2p,
+                "FatJet1_ParTPTopbWq": subleadingjet.ParTPTopbWq,
+                "FatJet1_ParTPTopbWqq": subleadingjet.ParTPTopbWqq,
                 "Jet0_pt": jet1_away.pt,
                 "Jet0_eta": jet1_away.eta,
                 "Jet0_phi": jet1_away.phi,
                 "Jet0_mass": jet1_away.mass,
-                "Jet0_btagPNetB": jet1_away.btagPNetB,
-                "Jet0_btagPNetCvB": jet1_away.btagPNetCvB,
-                "Jet0_btagPNetCvL": jet1_away.btagPNetCvL,
+                # "Jet0_btagPNetB": jet1_away.btagPNetB,
+                # "Jet0_btagPNetCvB": jet1_away.btagPNetCvB,
+                # "Jet0_btagPNetCvL": jet1_away.btagPNetCvL,
                 "Jet0_btagPNetQvG": jet1_away.btagPNetQvG,
                 "Jet1_pt": jet2_away.pt,
                 "Jet1_eta": jet2_away.eta,
                 "Jet1_phi": jet2_away.phi,
                 "Jet1_mass": jet2_away.mass,
-                "Jet1_btagPNetB": jet2_away.btagPNetB,
-                "Jet1_btagPNetCvB": jet2_away.btagPNetCvB,
-                "Jet1_btagPNetCvL": jet2_away.btagPNetCvL,
+                # "Jet1_btagPNetB": jet2_away.btagPNetB,
+                # "Jet1_btagPNetCvB": jet2_away.btagPNetCvB,
+                # "Jet1_btagPNetCvL": jet2_away.btagPNetCvL,
                 "Jet1_btagPNetQvG": jet2_away.btagPNetQvG,
                 "Jet2_pt": jet3_away.pt,
                 "Jet2_eta": jet3_away.eta,
                 "Jet2_phi": jet3_away.phi,
                 "Jet2_mass": jet3_away.mass,
-                "Jet2_btagPNetB": jet3_away.btagPNetB,
-                "Jet2_btagPNetCvB": jet3_away.btagPNetCvB,
-                "Jet2_btagPNetCvL": jet3_away.btagPNetCvL,
+                # "Jet2_btagPNetB": jet3_away.btagPNetB,
+                # "Jet2_btagPNetCvB": jet3_away.btagPNetCvB,
+                # "Jet2_btagPNetCvL": jet3_away.btagPNetCvL,
                 "Jet2_btagPNetQvG": jet3_away.btagPNetQvG,
                 "Jet3_pt": jet4_away.pt,
                 "Jet3_eta": jet4_away.eta,
                 "Jet3_phi": jet4_away.phi,
                 "Jet3_mass": jet4_away.mass,
-                "Jet3_btagPNetB": jet4_away.btagPNetB,
-                "Jet4_btagPNetCvB": jet4_away.btagPNetCvB,
-                "Jet4_btagPNetCvL": jet4_away.btagPNetCvL,
+                # "Jet3_btagPNetB": jet4_away.btagPNetB,
+                # "Jet4_btagPNetCvB": jet4_away.btagPNetCvB,
+                # "Jet4_btagPNetCvL": jet4_away.btagPNetCvL,
                 "Jet4_btagPNetQvG": jet4_away.btagPNetQvG,
                 "JetClosestFatJet0_pt": ak4_closest_ak8.pt,
                 "JetClosestFatJet0_eta": ak4_closest_ak8.eta,
                 "JetClosestFatJet0_phi": ak4_closest_ak8.phi,
                 "JetClosestFatJet0_mass": ak4_closest_ak8.mass,
+                "JetClosestFatJet0_dR": ak4_closest_ak8.delta_r(candidatejet),
+                "JetClosestFatJet0_dijetMass": (ak4_closest_ak8 + candidatejet).mass
+                "nJet_outsideFatJet0": ak.num(ak4_opphem_ak8, axis=1),
+                "nJet_opphemFatJet0": ak.num(ak4_outside_ak8, axis=1),
+                "era": ak.ones_like(events.run) * year2era[self._year],
             }
             bdt_input = ak.zip(bdt_ak_array, depth_limit=1)
 
@@ -666,9 +684,22 @@ class categorizer(SkimmerABC):
             bdt_scores = bdt_model(bdt_input)
 
             # assign scores to selections
-            selection.add("BDTisVBF", (bdt_scores == 0))
-            selection.add("BDTisVH", (bdt_scores == 1))
-            selection.add("BDTisggF", (bdt_scores == 2))
+            if self._ttbar_category:
+                # Define BDT working points for each category. To be optimized!
+                WP_dict = {
+                    'vbf':0.5, #0
+                    'vh':0.5, #1
+                    'ggf':0.2, #2
+                    'ttbar':0.3, #3
+                }
+                selection.add("BDTisVBF", (bdt_scores[0] > WP_dict['vbf']) & (bdt_scores[1] < WP_dict['vh']) & (bdt_scores[2] < WP_dict['ggf']) & (bdt_scores[3] < WP_dict['ttbar']))
+                selection.add("BDTisVH", (bdt_scores[1] > WP_dict['vh']) & (bdt_scores[0] < WP_dict['vbf']) & (bdt_scores[2] < WP_dict['ggf']) & (bdt_scores[3] < WP_dict['ttbar']))
+                selection.add("BDTisggF", (bdt_scores[2] > WP_dict['ggf']) & (bdt_scores[0] < WP_dict['vbf']) & (bdt_scores[1] < WP_dict['vh']) & (bdt_scores[3] < WP_dict['ttbar']))
+                selection.add("BDTisTTbar", (bdt_scores[3] > WP_dict['ttbar']) & (bdt_scores[0] < WP_dict['vbf']) & (bdt_scores[1] < WP_dict['vh']) & (bdt_scores[2] < WP_dict['ggf']))
+            else:
+                selection.add("BDTisVBF", (bdt_scores == 0))
+                selection.add("BDTisVH", (bdt_scores == 1))
+                selection.add("BDTisggF", (bdt_scores == 2))
 
         gen_variables = {}
         btag_SF = ak.ones_like(events.run)
