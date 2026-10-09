@@ -164,7 +164,7 @@ class categorizer(SkimmerABC):
         save_skim=False,
         skim_outpath="",
         evaluate_BDT=True,
-        ttbar_category=True
+        ttbar_category=True,
         btag_eff=False,
         save_skim_nosysts=False,
     ):
@@ -320,7 +320,8 @@ class categorizer(SkimmerABC):
                     include_weights.append(weight_key)
             else:
                 include_weights.append(weight_key)
-
+        print(weights, weights._weights.keys())
+        print(include_weights)
         logger.debug("weights", extra=weights._weights.keys())
         # dictionary of all weights and variations
         weights_dict = {}
@@ -354,8 +355,11 @@ class categorizer(SkimmerABC):
         for weight in include_weights:
             include_copy = include_weights.copy()
             include_copy.remove(weight)
-            weights_dict[f"weight_nonorm_WITHOUT_{weight.replace(f'REGION{region}_', '')}"] = weights.partial_weight(include=include_copy)
-
+            # weights_dict[f"weight_nonorm_WITHOUT_{weight.replace(f'REGION{region}_', '')}"] = weights.partial_weight(include=include_copy)
+            if include_copy:
+                weights_dict[f"weight_nonorm_WITHOUT_{weight.replace(f'REGION{region}_', '')}"] = weights.partial_weight(include=include_copy)
+            else:
+                weights_dict[f"weight_nonorm_WITHOUT_{weight.replace(f'REGION{region}_', '')}"] = weights.partial_weight(include='genweight')
         # save the unnormalized weight, to confirm that it's been normalized in post-processing
         weights_dict["weight_noxsec"] = weights.partial_weight(include=include_weights)
 
@@ -672,7 +676,7 @@ class categorizer(SkimmerABC):
                 "JetClosestFatJet0_phi": ak4_closest_ak8.phi,
                 "JetClosestFatJet0_mass": ak4_closest_ak8.mass,
                 "JetClosestFatJet0_dR": ak4_closest_ak8.delta_r(candidatejet),
-                "JetClosestFatJet0_dijetMass": (ak4_closest_ak8 + candidatejet).mass
+                "JetClosestFatJet0_dijetMass": (ak4_closest_ak8 + candidatejet).mass,
                 "nJet_outsideFatJet0": ak.num(ak4_opphem_ak8, axis=1),
                 "nJet_opphemFatJet0": ak.num(ak4_outside_ak8, axis=1),
                 "era": ak.ones_like(events.run) * year2era[self._year],
@@ -682,6 +686,7 @@ class categorizer(SkimmerABC):
             # Evaluate BDT
             bdt_model = self.bdt_model
             bdt_scores = bdt_model(bdt_input)
+            # print("BDT scores:", bdt_scores[:,0])
 
             # assign scores to selections
             if self._ttbar_category:
@@ -692,10 +697,10 @@ class categorizer(SkimmerABC):
                     'ggf':0.2, #2
                     'ttbar':0.3, #3
                 }
-                selection.add("BDTisVBF", (bdt_scores[0] > WP_dict['vbf']) & (bdt_scores[1] < WP_dict['vh']) & (bdt_scores[2] < WP_dict['ggf']) & (bdt_scores[3] < WP_dict['ttbar']))
-                selection.add("BDTisVH", (bdt_scores[1] > WP_dict['vh']) & (bdt_scores[0] < WP_dict['vbf']) & (bdt_scores[2] < WP_dict['ggf']) & (bdt_scores[3] < WP_dict['ttbar']))
-                selection.add("BDTisggF", (bdt_scores[2] > WP_dict['ggf']) & (bdt_scores[0] < WP_dict['vbf']) & (bdt_scores[1] < WP_dict['vh']) & (bdt_scores[3] < WP_dict['ttbar']))
-                selection.add("BDTisTTbar", (bdt_scores[3] > WP_dict['ttbar']) & (bdt_scores[0] < WP_dict['vbf']) & (bdt_scores[1] < WP_dict['vh']) & (bdt_scores[2] < WP_dict['ggf']))
+                selection.add("BDTisVBF", (bdt_scores[:,0] > WP_dict['vbf']) & (bdt_scores[:,1] < WP_dict['vh']) & (bdt_scores[:,2] < WP_dict['ggf']) & (bdt_scores[:,3] < WP_dict['ttbar']))
+                selection.add("BDTisVH", (bdt_scores[:,1] > WP_dict['vh']) & (bdt_scores[:,0] < WP_dict['vbf']) & (bdt_scores[:,2] < WP_dict['ggf']) & (bdt_scores[:,3] < WP_dict['ttbar']))
+                selection.add("BDTisggF", (bdt_scores[:,2] > WP_dict['ggf']) & (bdt_scores[:,0] < WP_dict['vbf']) & (bdt_scores[:,1] < WP_dict['vh']) & (bdt_scores[:,3] < WP_dict['ttbar']))
+                selection.add("BDTisTTbar", (bdt_scores[:,3] > WP_dict['ttbar']) & (bdt_scores[:,0] < WP_dict['vbf']) & (bdt_scores[:,1] < WP_dict['vh']) & (bdt_scores[:,2] < WP_dict['ggf']))
             else:
                 selection.add("BDTisVBF", (bdt_scores == 0))
                 selection.add("BDTisVH", (bdt_scores == 1))
@@ -816,6 +821,10 @@ class categorizer(SkimmerABC):
                     "signal-vbf-BDT": [x for x in regions["signal-vbf"] if x not in ["isvbf"]] + ["BDTisVBF"],
                 }
             )
+            if self._ttbar_category:
+                regions.update(
+                    {"signal-ttbar-BDT": signal_all.copy() + ["BDTisTTbar"]}
+                )
 
         btag_eff_cuts = [x for x in regions["signal-all"] if x not in ["antiak4btagMedium", "antiak4btagMediumOppHem", "ak4btagMedium08"]]
 
