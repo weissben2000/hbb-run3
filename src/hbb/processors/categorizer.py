@@ -74,65 +74,69 @@ gen_selection_dict = {
 
 
 def get_BDT_model(BDT_file: str):
-    bdt_features = [
-        "nFatJet",
-        "nJet",
-        "FatJet0_phi",
-        "FatJet0_eta",
-        "FatJet0_n2b1",
-        "FatJet0_n3b1",
-        "FatJet1_pt",
-        "FatJet1_phi",
-        "FatJet1_eta",
-        "FatJet1_msd",
-        "VBFPair_mjj",
-        "VBFPair_deta",
-        "FatJet1_ParTPQCD",
-        "FatJet1_ParTPXbb",
-        "FatJet1_ParTPXcc",
-        "FatJet1_ParTPXqq",
-        "FatJet1_ParTPXcs",
-        "FatJet1_ParTPXbbVsQCD",
-        "FatJet1_ParTPXccVsQCD",
-        "FatJet1_ParTPXbbXcc",
-        "FatJet1_ParTmassX2p",
-        "Jet0_pt",
-        "Jet0_eta",
-        "Jet0_phi",
-        "Jet0_mass",
-        "Jet0_btagPNetB",
-        "Jet0_btagPNetCvB",
-        "Jet0_btagPNetCvL",
-        "Jet0_btagPNetQvG",
-        "Jet1_pt",
-        "Jet1_eta",
-        "Jet1_phi",
-        "Jet1_mass",
-        "Jet1_btagPNetB",
-        "Jet1_btagPNetCvB",
-        "Jet1_btagPNetCvL",
-        "Jet1_btagPNetQvG",
-        "Jet2_pt",
-        "Jet2_eta",
-        "Jet2_phi",
-        "Jet2_mass",
-        "Jet2_btagPNetB",
-        "Jet2_btagPNetCvB",
-        "Jet2_btagPNetCvL",
-        "Jet2_btagPNetQvG",
-        "Jet3_pt",
-        "Jet3_eta",
-        "Jet3_phi",
-        "Jet3_mass",
-        "Jet3_btagPNetB",
-        "Jet4_btagPNetCvB",
-        "Jet4_btagPNetCvL",
-        "Jet4_btagPNetQvG",
-        "JetClosestFatJet0_pt",
-        "JetClosestFatJet0_eta",
-        "JetClosestFatJet0_phi",
-        "JetClosestFatJet0_mass",
-    ]
+    # bdt_features = [
+    #     "nFatJet",
+    #     "nJet",
+    #     "FatJet0_phi",
+    #     "FatJet0_eta",
+    #     "FatJet0_n2b1",
+    #     "FatJet0_n3b1",
+    #     "FatJet1_pt",
+    #     "FatJet1_phi",
+    #     "FatJet1_eta",
+    #     "FatJet1_msd",
+    #     "VBFPair_mjj",
+    #     "VBFPair_deta",
+    #     "FatJet1_ParTPQCD",
+    #     "FatJet1_ParTPXbb",
+    #     "FatJet1_ParTPXcc",
+    #     "FatJet1_ParTPXqq",
+    #     "FatJet1_ParTPXcs",
+    #     "FatJet1_ParTPXbbVsQCD",
+    #     "FatJet1_ParTPXccVsQCD",
+    #     "FatJet1_ParTPXbbXcc",
+    #     "FatJet1_ParTmassX2p",
+    #     "Jet0_pt",
+    #     "Jet0_eta",
+    #     "Jet0_phi",
+    #     "Jet0_mass",
+    #     "Jet0_btagPNetB",
+    #     "Jet0_btagPNetCvB",
+    #     "Jet0_btagPNetCvL",
+    #     "Jet0_btagPNetQvG",
+    #     "Jet1_pt",
+    #     "Jet1_eta",
+    #     "Jet1_phi",
+    #     "Jet1_mass",
+    #     "Jet1_btagPNetB",
+    #     "Jet1_btagPNetCvB",
+    #     "Jet1_btagPNetCvL",
+    #     "Jet1_btagPNetQvG",
+    #     "Jet2_pt",
+    #     "Jet2_eta",
+    #     "Jet2_phi",
+    #     "Jet2_mass",
+    #     "Jet2_btagPNetB",
+    #     "Jet2_btagPNetCvB",
+    #     "Jet2_btagPNetCvL",
+    #     "Jet2_btagPNetQvG",
+    #     "Jet3_pt",
+    #     "Jet3_eta",
+    #     "Jet3_phi",
+    #     "Jet3_mass",
+    #     "Jet3_btagPNetB",
+    #     "Jet4_btagPNetCvB",
+    #     "Jet4_btagPNetCvL",
+    #     "Jet4_btagPNetQvG",
+    #     "JetClosestFatJet0_pt",
+    #     "JetClosestFatJet0_eta",
+    #     "JetClosestFatJet0_phi",
+    #     "JetClosestFatJet0_mass",
+    # ]
+    booster = xgb.Booster()
+    booster.load_model(Path.cwd() / BDT_file)
+    bdt_features = booster.feature_names
+    booster.feature_names = None  # Disable feature name checking
 
     class xgboost_model(xgboost_wrapper):
         # Define how to prepare awkward arrays for BDT evaluation
@@ -145,10 +149,8 @@ def get_BDT_model(BDT_file: str):
             ret = ak.concatenate(features, axis=1)
             return [], dict(data=ret)
 
-    booster = xgb.Booster()
-    booster.load_model(Path.cwd() / BDT_file)
-    booster.feature_names = None  # Disable feature name checking
     model = xgboost_model(booster)
+
     return model
 
 
@@ -162,6 +164,7 @@ class categorizer(SkimmerABC):
         save_skim=False,
         skim_outpath="",
         evaluate_BDT=True,
+        ttbar_category=True,
         btag_eff=False,
         ak4_tag_cal = False,
         save_skim_nosysts=False,
@@ -179,6 +182,7 @@ class categorizer(SkimmerABC):
             self._save_skim = True
         self._skim_outpath = skim_outpath
         self._evaluate_BDT = evaluate_BDT
+        self._ttbar_category = ttbar_category
         self._btag_eff = btag_eff
         self._ak4_tag_cal = ak4_tag_cal
         self._btagger, self._btag_wp = "btagPNetB", "M"
@@ -186,7 +190,9 @@ class categorizer(SkimmerABC):
             self._btagger = "btagUParTAK4B"
         self._btag_cut = b_taggers[self._year]["AK4"][self._btagger][self._btag_wp]
         self._mupt_type = "ptcorr"
-        if self._evaluate_BDT:
+        if self._evaluate_BDT and self._ttbar_category:
+            self.bdt_model = get_BDT_model("src/hbb/data/BatchedBDT_4Cat_26Sep21_LessVars.json")
+        elif self._evaluate_BDT and not self._ttbar_category:
             self.bdt_model = get_BDT_model("src/hbb/data/MultiBDT_3cat_26Jun12.json")
 
         with Path("src/hbb/muon_triggers.json").open() as f:
@@ -324,7 +330,8 @@ class categorizer(SkimmerABC):
                     include_weights.append(weight_key)
             else:
                 include_weights.append(weight_key)
-
+        print(weights, weights._weights.keys())
+        print(include_weights)
         logger.debug("weights", extra=weights._weights.keys())
         # dictionary of all weights and variations
         weights_dict = {}
@@ -358,8 +365,11 @@ class categorizer(SkimmerABC):
         for weight in include_weights:
             include_copy = include_weights.copy()
             include_copy.remove(weight)
-            weights_dict[f"weight_nonorm_WITHOUT_{weight.replace(f'REGION{region}_', '')}"] = weights.partial_weight(include=include_copy)
-
+            # weights_dict[f"weight_nonorm_WITHOUT_{weight.replace(f'REGION{region}_', '')}"] = weights.partial_weight(include=include_copy)
+            if include_copy:
+                weights_dict[f"weight_nonorm_WITHOUT_{weight.replace(f'REGION{region}_', '')}"] = weights.partial_weight(include=include_copy)
+            else:
+                weights_dict[f"weight_nonorm_WITHOUT_{weight.replace(f'REGION{region}_', '')}"] = weights.partial_weight(include='genweight')
         # save the unnormalized weight, to confirm that it's been normalized in post-processing
         weights_dict["weight_noxsec"] = weights.partial_weight(include=include_weights)
 
@@ -480,12 +490,15 @@ class categorizer(SkimmerABC):
             xbbfatjets = goodfatjets[ak.argsort(goodfatjets.ParTPXbbXcc, axis=1, ascending=False)]
 
         candidatejet = ak.firsts(xbbfatjets[:, 0:1])
-        subleadingjet = ak.firsts(xbbfatjets[:, 1:2])
+        
+        leftover_jets = xbbfatjets[:, 1:]
+        leftover_jets_bypt = leftover_jets[ak.argsort(leftover_jets.pt, axis=1, ascending=False)]
+        
+        subleadingjet = ak.firsts(leftover_jets_bypt[:, 0:1])
 
         selection.add(
             "minjetkin",
-            (candidatejet.pt >= 300) & (candidatejet.pt < 1200) & (candidatejet.msd >= 40.0)
-            # & (candidatejet.msd < 201.0)
+            (candidatejet.pt >= 300) & (candidatejet.pt < 1200)
             & (abs(candidatejet.eta) < 2.5),
         )
 
@@ -608,6 +621,15 @@ class categorizer(SkimmerABC):
         selection.add("passphotonveto", (nphotons == 0))
 
         if self._evaluate_BDT:
+            #BDT requires a mapping of year to float
+            year2era = { 
+                '2022':2022, 
+                '2022EE':2022.5, 
+                '2023':2023, 
+                '2023BPix':2023.5,
+                '2024':2024
+            }
+
             # Construct BDT input
             bdt_ak_array = {
                 "nFatJet": ak.num(goodfatjets, axis=1),
@@ -627,63 +649,86 @@ class categorizer(SkimmerABC):
                 "FatJet1_ParTPXcc": subleadingjet.ParTPXcc,
                 "FatJet1_ParTPXqq": subleadingjet.ParTPXqq,
                 "FatJet1_ParTPXcs": subleadingjet.ParTPXcs,
-                "FatJet1_ParTPXbbVsQCD": subleadingjet.ParTPXbbVsQCD,
-                "FatJet1_ParTPXccVsQCD": subleadingjet.ParTPXccVsQCD,
-                "FatJet1_ParTPXbbXcc": subleadingjet.ParTPXbbXcc,
+                # "FatJet1_ParTPXbbVsQCD": subleadingjet.ParTPXbbVsQCD,
+                # "FatJet1_ParTPXccVsQCD": subleadingjet.ParTPXccVsQCD,
+                # "FatJet1_ParTPXbbXcc": subleadingjet.ParTPXbbXcc,
                 "FatJet1_ParTmassX2p": subleadingjet.ParTmassX2p,
+                "FatJet1_ParTPTopbWq": subleadingjet.ParTPTopbWq,
+                "FatJet1_ParTPTopbWqq": subleadingjet.ParTPTopbWqq,
                 "Jet0_pt": jet1_away.pt,
                 "Jet0_eta": jet1_away.eta,
                 "Jet0_phi": jet1_away.phi,
                 "Jet0_mass": jet1_away.mass,
-                "Jet0_btagPNetB": jet1_away.btagPNetB,
-                "Jet0_btagPNetCvB": jet1_away.btagPNetCvB,
-                "Jet0_btagPNetCvL": jet1_away.btagPNetCvL,
+                # "Jet0_btagPNetB": jet1_away.btagPNetB,
+                # "Jet0_btagPNetCvB": jet1_away.btagPNetCvB,
+                # "Jet0_btagPNetCvL": jet1_away.btagPNetCvL,
                 "Jet0_btagPNetQvG": jet1_away.btagPNetQvG,
                 "Jet1_pt": jet2_away.pt,
                 "Jet1_eta": jet2_away.eta,
                 "Jet1_phi": jet2_away.phi,
                 "Jet1_mass": jet2_away.mass,
-                "Jet1_btagPNetB": jet2_away.btagPNetB,
-                "Jet1_btagPNetCvB": jet2_away.btagPNetCvB,
-                "Jet1_btagPNetCvL": jet2_away.btagPNetCvL,
+                # "Jet1_btagPNetB": jet2_away.btagPNetB,
+                # "Jet1_btagPNetCvB": jet2_away.btagPNetCvB,
+                # "Jet1_btagPNetCvL": jet2_away.btagPNetCvL,
                 "Jet1_btagPNetQvG": jet2_away.btagPNetQvG,
                 "Jet2_pt": jet3_away.pt,
                 "Jet2_eta": jet3_away.eta,
                 "Jet2_phi": jet3_away.phi,
                 "Jet2_mass": jet3_away.mass,
-                "Jet2_btagPNetB": jet3_away.btagPNetB,
-                "Jet2_btagPNetCvB": jet3_away.btagPNetCvB,
-                "Jet2_btagPNetCvL": jet3_away.btagPNetCvL,
+                # "Jet2_btagPNetB": jet3_away.btagPNetB,
+                # "Jet2_btagPNetCvB": jet3_away.btagPNetCvB,
+                # "Jet2_btagPNetCvL": jet3_away.btagPNetCvL,
                 "Jet2_btagPNetQvG": jet3_away.btagPNetQvG,
                 "Jet3_pt": jet4_away.pt,
                 "Jet3_eta": jet4_away.eta,
                 "Jet3_phi": jet4_away.phi,
                 "Jet3_mass": jet4_away.mass,
-                "Jet3_btagPNetB": jet4_away.btagPNetB,
-                "Jet4_btagPNetCvB": jet4_away.btagPNetCvB,
-                "Jet4_btagPNetCvL": jet4_away.btagPNetCvL,
+                # "Jet3_btagPNetB": jet4_away.btagPNetB,
+                # "Jet4_btagPNetCvB": jet4_away.btagPNetCvB,
+                # "Jet4_btagPNetCvL": jet4_away.btagPNetCvL,
                 "Jet4_btagPNetQvG": jet4_away.btagPNetQvG,
                 "JetClosestFatJet0_pt": ak4_closest_ak8.pt,
                 "JetClosestFatJet0_eta": ak4_closest_ak8.eta,
                 "JetClosestFatJet0_phi": ak4_closest_ak8.phi,
                 "JetClosestFatJet0_mass": ak4_closest_ak8.mass,
+                "JetClosestFatJet0_dR": ak4_closest_ak8.delta_r(candidatejet),
+                "JetClosestFatJet0_dijetMass": (ak4_closest_ak8 + candidatejet).mass,
+                "nJet_outsideFatJet0": ak.num(ak4_opphem_ak8, axis=1),
+                "nJet_opphemFatJet0": ak.num(ak4_outside_ak8, axis=1),
+                "era": ak.ones_like(events.run) * year2era[self._year],
             }
             bdt_input = ak.zip(bdt_ak_array, depth_limit=1)
 
             # Evaluate BDT
             bdt_model = self.bdt_model
             bdt_scores = bdt_model(bdt_input)
+            # print("BDT scores:", bdt_scores[:,0])
 
             # assign scores to selections
-            selection.add("BDTisVBF", (bdt_scores == 0))
-            selection.add("BDTisVH", (bdt_scores == 1))
-            selection.add("BDTisggF", (bdt_scores == 2))
+            if self._ttbar_category:
+                # Define BDT working points for each category. To be optimized!
+                WP_dict = {
+                    'vbf':0.5, #0
+                    'vh':0.5, #1
+                    'ggf':0.2, #2
+                    'ttbar':0.3, #3
+                }
+                selection.add("BDTisVBF", (bdt_scores[:,0] > WP_dict['vbf']) & (bdt_scores[:,1] < WP_dict['vh']) & (bdt_scores[:,2] < WP_dict['ggf']) & (bdt_scores[:,3] < WP_dict['ttbar']))
+                selection.add("BDTisVH", (bdt_scores[:,1] > WP_dict['vh']) & (bdt_scores[:,0] < WP_dict['vbf']) & (bdt_scores[:,2] < WP_dict['ggf']) & (bdt_scores[:,3] < WP_dict['ttbar']))
+                selection.add("BDTisggF", (bdt_scores[:,2] > WP_dict['ggf']) & (bdt_scores[:,0] < WP_dict['vbf']) & (bdt_scores[:,1] < WP_dict['vh']) & (bdt_scores[:,3] < WP_dict['ttbar']))
+                selection.add("BDTisTTbar", (bdt_scores[:,3] > WP_dict['ttbar']) & (bdt_scores[:,0] < WP_dict['vbf']) & (bdt_scores[:,1] < WP_dict['vh']) & (bdt_scores[:,2] < WP_dict['ggf']))
+            else:
+                selection.add("BDTisVBF", (bdt_scores == 0))
+                selection.add("BDTisVH", (bdt_scores == 1))
+                selection.add("BDTisggF", (bdt_scores == 2))
 
         gen_variables = {}
         btag_SF = ak.ones_like(events.run)
         if isRealData:
             genflavor = ak.zeros_like(candidatejet.pt)
             genBosonPt = ak.zeros_like(candidatejet.pt)
+            genflavor_V = ak.zeros_like(candidatejet.pt)
+            genBosonPt_V = ak.zeros_like(candidatejet.pt)
         else:
 
             self.add_common_weights(weights, events, dataset)
@@ -716,66 +761,44 @@ class categorizer(SkimmerABC):
 
             bosons = getBosons(events.GenPart)
             matchedBoson = candidatejet.nearest(bosons, axis=None, threshold=0.8)
+            matchedBoson_V = subleadingjet.nearest(bosons, axis=None, threshold=0.8)
+            
             match_mask = (abs(candidatejet.pt - matchedBoson.pt) / matchedBoson.pt < 0.5) & (
                 abs(candidatejet.msd - matchedBoson.mass) / matchedBoson.mass < 0.3
             )
+            match_mask_V = (abs(subleadingjet.pt - matchedBoson_V.pt) / matchedBoson_V.pt < 0.5) & (
+                abs(subleadingjet.msd - matchedBoson_V.mass) / matchedBoson_V.mass < 0.3
+            )
+            
             selmatchedBoson = ak.mask(matchedBoson, match_mask)
+            selmatchedBoson_V = ak.mask(matchedBoson_V, match_mask_V)
+            
             genflavor = bosonFlavor(selmatchedBoson)
-            genBosonPt = ak.fill_none(ak.firsts(bosons.pt), 0)
+            genflavor_V = bosonFlavor(selmatchedBoson_V)
+            
+            genBosonPt = ak.fill_none(selmatchedBoson.pt, 0)
+            genBosonPt_V = ak.fill_none(selmatchedBoson_V.pt, 0)
 
         # softdrop mass, 0 for genflavor == 0
         msd_matched = candidatejet.msd * (genflavor > 0) + candidatejet.msd * (genflavor == 0)
+        msd_matched_V = subleadingjet.msd * (genflavor_V > 0) + subleadingjet.msd * (genflavor_V == 0)
+        
+        signal_all = [
+                "trigger",
+                "lumimask",
+                "metfilter",
+                "ak4jetveto",
+                "minjetkin",
+                "antiak4btagMedium",
+                "lowmet",
+                "noleptons",
+            ]
 
         regions = {
-            "signal-all": [
-                "trigger",
-                "lumimask",
-                "metfilter",
-                "ak4jetveto",
-                "minjetkin",
-                # "antiak4btagMediumOppHem",
-                "antiak4btagMedium",
-                "lowmet",
-                "noleptons",
-            ],
-            "signal-ggf": [
-                "trigger",
-                "lumimask",
-                "metfilter",
-                "ak4jetveto",
-                "minjetkin",
-                # "antiak4btagMediumOppHem",
-                "antiak4btagMedium",
-                "lowmet",
-                "noleptons",
-                "notvbf",
-                "not2FJ",
-            ],
-            "signal-vh": [
-                "trigger",
-                "lumimask",
-                "metfilter",
-                "ak4jetveto",
-                "minjetkin",
-                # "antiak4btagMediumOppHem",
-                "antiak4btagMedium",
-                "lowmet",
-                "noleptons",
-                "notvbf",
-                "2FJ",
-            ],
-            "signal-vbf": [
-                "trigger",
-                "lumimask",
-                "metfilter",
-                "ak4jetveto",
-                "minjetkin",
-                # "antiak4btagMediumOppHem",
-                "antiak4btagMedium",
-                "lowmet",
-                "noleptons",
-                "isvbf",
-            ],
+            "signal-all": signal_all.copy(),
+            "signal-ggf": signal_all.copy() + ["notvbf", "not2FJ"],
+            "signal-vh": signal_all.copy() + ["notvbf", "2FJ"],
+            "signal-vbf": signal_all.copy() + ["isvbf"],
             "control-tt": [
                 "muontrigger",
                 "lumimask",
@@ -814,16 +837,12 @@ class categorizer(SkimmerABC):
                     "signal-vbf-BDT": [x for x in regions["signal-vbf"] if x not in ["isvbf"]] + ["BDTisVBF"],
                 }
             )
+            if self._ttbar_category:
+                regions.update(
+                    {"signal-ttbar-BDT": signal_all.copy() + ["BDTisTTbar"]}
+                )
 
-        btag_eff_cuts = [
-            "trigger",
-            "lumimask",
-            "metfilter",
-            "ak4jetveto",
-            "minjetkin",
-            "lowmet",
-            "noleptons",
-        ]
+        btag_eff_cuts = [x for x in regions["signal-all"] if x not in ["antiak4btagMedium", "antiak4btagMediumOppHem", "ak4btagMedium08"]]
 
         tic = time.time()
 
@@ -887,6 +906,8 @@ class categorizer(SkimmerABC):
             output_array = {
                 "GenBoson_pt": genBosonPt,
                 "GenFlavor": genflavor,
+                "GenBoson_V_pt": genBosonPt_V,
+                "GenFlavor_V": genflavor_V,
                 "nFatJet": ak.num(goodfatjets, axis=1),
                 "nJet": ak.num(goodjets, axis=1),
                 "nJet_outsideFatJet0": ak.num(ak4_opphem_ak8, axis=1),
@@ -896,6 +917,7 @@ class categorizer(SkimmerABC):
                 "FatJet0_phi": candidatejet.phi,
                 "FatJet0_eta": candidatejet.eta,
                 "FatJet0_msd": candidatejet.msd,
+                "FatJet0_msd_rho": candidatejet.qcdrho,
                 "FatJet0_msdmatched": msd_matched,
                 "FatJet0_n2b1": candidatejet.n2b1,
                 "FatJet0_n3b1": candidatejet.n3b1,
@@ -910,6 +932,8 @@ class categorizer(SkimmerABC):
                 "FatJet1_phi": subleadingjet.phi,
                 "FatJet1_eta": subleadingjet.eta,
                 "FatJet1_msd": subleadingjet.msd,
+                "FatJet1_msdmatched": msd_matched_V,
+                "FatJet1_msd_rho": subleadingjet.qcdrho,
                 "FatJet1_pnetMass": subleadingjet.pnetmass,
                 "FatJet1_pnetTXbb": subleadingjet.particleNet_XbbVsQCD,
                 "FatJet1_pnetTXcc": subleadingjet.particleNet_XccVsQCD,
@@ -955,6 +979,7 @@ class categorizer(SkimmerABC):
                 "FatJet0_pt": candidatejet.pt,
                 "FatJet0_msd": candidatejet.msd,
                 "FatJet0_msdmatched": msd_matched,
+                "FatJet0_msd_rho": candidatejet.qcdrho,
                 "FatJet0_pnetTXbb": candidatejet.particleNet_XbbVsQCD,
                 "FatJet0_pnetTXcc": candidatejet.particleNet_XccVsQCD,
                 "FatJet0_pnetXbbXcc": candidatejet.pnetXbbXcc,
@@ -975,6 +1000,8 @@ class categorizer(SkimmerABC):
                     "FatJet0_ParTPXbbXcc": candidatejet.ParTPXbbXcc,
                     "FatJet0_ParTPTopbWq": candidatejet.ParTPTopbWq,
                     "FatJet0_ParTPTopbWqq": candidatejet.ParTPTopbWqq,
+                    "FatJet0_ParTmassGeneric_rho": candidatejet.ParTmassGeneric_rho,
+                    "FatJet0_ParTmassX2p_rho": candidatejet.ParTmassX2p_rho,
                     "FatJet0_ParTmassGeneric": candidatejet.ParTmassGeneric,
                     "FatJet0_ParTmassX2p": candidatejet.ParTmassX2p,
                     "FatJet1_ParTPQCD": subleadingjet.ParTPQCD,
@@ -989,6 +1016,8 @@ class categorizer(SkimmerABC):
                     "FatJet1_ParTPTopbWqq": subleadingjet.ParTPTopbWqq,
                     "FatJet1_ParTmassGeneric": subleadingjet.ParTmassGeneric,
                     "FatJet1_ParTmassX2p": subleadingjet.ParTmassX2p,
+                    "FatJet1_ParTmassGeneric_rho": subleadingjet.ParTmassGeneric_rho,
+                    "FatJet1_ParTmassX2p_rho": subleadingjet.ParTmassX2p_rho,
                 }
                 output_array = {**output_array, **parT_array}
 
@@ -996,6 +1025,10 @@ class categorizer(SkimmerABC):
                     "FatJet0_ParTPXbbVsQCD": candidatejet.ParTPXbbVsQCD,
                     "FatJet0_ParTPXccVsQCD": candidatejet.ParTPXccVsQCD,
                     "FatJet0_ParTPXbbXcc": candidatejet.ParTPXbbXcc,
+                    "FatJet0_ParTmassGeneric": candidatejet.ParTmassGeneric,
+                    "FatJet0_ParTmassX2p": candidatejet.ParTmassX2p,
+                    "FatJet0_ParTmassGeneric_rho": candidatejet.ParTmassGeneric_rho,
+                    "FatJet0_ParTmassX2p_rho": candidatejet.ParTmassX2p_rho,
                 }
                 energy_var_array = {**energy_var_array, **energy_var_array_parT}
 

@@ -179,6 +179,9 @@ def set_ak8jets(fatjets: FatJetArray, isRealData: bool, year: str, nano_version:
             fatjets.globalParT3_massCorrX2p * (1 - fatjets.rawFactor) * fatjets.mass
         )
 
+        fatjets["ParTmassGeneric_rho"] = 2 * np.log(fatjets.ParTmassGeneric / fatjets.pt)
+        fatjets["ParTmassX2p_rho"] = 2 * np.log(fatjets.ParTmassX2p / fatjets.pt)
+
     fatjets["msd"] = fatjets.msoftdrop
     fatjets["qcdrho"] = 2 * np.log(fatjets.msd / fatjets.pt)
     fatjets["pnetmass"] = fatjets.particleNet_massCorr * fatjets.mass
